@@ -1,0 +1,46 @@
+BACKTESTING PERFORMANCE REPORT
+==================================================
+
+Strategy: MeanReversion
+Period: 2024-04-01 00:00:00 to 2024-06-30 23:59:00
+Initial Capital: $100,000.00
+
+SUMMARY METRICS
+--------------------
+Total Return: -0.9989
+Annualized Return: -1.0000
+Volatility: 1336457.541813
+Sharpe Ratio: -0.0000
+Calmar Ratio: -0.9957
+Sortino Ratio: -0.0000
+Information Ratio: -0.0068
+Skewness: 112.395106
+Kurtosis: 20205.241316
+Var 95: -1.001008
+Cvar 95: -694.522357
+
+TRADE ANALYSIS
+--------------------
+Total Trades: 3460
+Profitable Trades: 86
+Losing Trades: 3374
+Win Rate: 0.02
+Profit Factor: 0.03
+Avg Trade Pnl: -31.44
+Median Trade Pnl: -7.05
+Best Trade: 276.68
+Worst Trade: -454.68
+Avg Duration Hours: 0.35
+Median Duration Hours: 0.20
+Max Win Streak: 3
+Max Loss Streak: 434
+
+RISK METRICS
+--------------------
+Var 99: -929.4246
+Cvar 99: -2516.4886
+Max Consecutive Losses: 16
+Beta: 265.0590
+Downside Capture: 11177.8492
+Upside Capture: 8387.4387
+
