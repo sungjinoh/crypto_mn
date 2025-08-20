@@ -140,3 +140,7 @@ node_modules/
 
 
 binance_futures_data/
+
+state/positions.json
+
+*.pkl
