@@ -1,3 +1,7 @@
+---
+applyTo: "**"
+---
+
 # Strategy Development Guidelines
 
 ## Objective

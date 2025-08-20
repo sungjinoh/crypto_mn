@@ -1,0 +1,14 @@
+{
+  "MAVIAUSDT-WLDUSDT": {
+    "symbol1": "MAVIAUSDT",
+    "symbol2": "WLDUSDT",
+    "side": "long",
+    "symbol1_qty": 1.0,
+    "symbol2_qty": -0.7428468839648605,
+    "hedge_ratio": 0.7428468839648605,
+    "entry_time": "2025-08-20T16:14:01.839936",
+    "entry_spread": 0.8513190614354258,
+    "entry_z_score": -1.423641516024759,
+    "status": "open"
+  }
+}

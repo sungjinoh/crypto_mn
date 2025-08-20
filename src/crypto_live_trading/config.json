@@ -1,0 +1,24 @@
+{
+  "trading": {
+    "sandbox": true,
+    "portfolio_value": 10000,
+    "risk_per_trade": 0.02,
+    "max_positions": 5,
+    "timeframe": "4h"
+  },
+  "strategy": {
+    "lookback_period": 60,
+    "entry_threshold": 1.0,
+    "exit_threshold": 0.5,
+    "stop_loss_threshold": 3.5
+  },
+  "data": {
+    "lookback_periods": 100,
+    "max_pairs_to_trade": 10
+  },
+  "files": {
+    "cointegrated_pairs": "state/cointegrated_pairs.json",
+    "positions": "state/positions.json",
+    "trades_history": "state/trades_history.json"
+  }
+}

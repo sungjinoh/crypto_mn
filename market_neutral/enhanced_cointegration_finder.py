@@ -11,7 +11,8 @@ from datetime import datetime
 from itertools import combinations
 from typing import Dict, List, Tuple, Optional, Any
 import warnings
-warnings.filterwarnings('ignore')
+
+warnings.filterwarnings("ignore")
 
 import pandas as pd
 import numpy as np
@@ -27,15 +28,17 @@ class CointegrationFinder:
     A class to find and analyze cointegrated pairs from historical market data.
     """
 
-    def __init__(self, 
-                 base_path: str = "binance_futures_data",
-                 resample_interval: str = "30T",
-                 min_data_points: int = 1000,
-                 significance_level: float = 0.05,
-                 n_jobs: int = -1):
+    def __init__(
+        self,
+        base_path: str = "binance_futures_data",
+        resample_interval: str = "30T",
+        min_data_points: int = 1000,
+        significance_level: float = 0.05,
+        n_jobs: int = -1,
+    ):
         """
         Initialize the CointegrationFinder.
-        
+
         Args:
             base_path: Path to the data directory
             resample_interval: Resampling interval for klines (e.g., '30T' for 30 minutes)
@@ -92,7 +95,9 @@ class CointegrationFinder:
             print(f"Error reading {symbol} {year}-{month_str}: {e}")
             return None
 
-    def read_funding_rate(self, year: int, month: int, symbol: str) -> Optional[pd.DataFrame]:
+    def read_funding_rate(
+        self, year: int, month: int, symbol: str
+    ) -> Optional[pd.DataFrame]:
         """Read funding rate data for a specific symbol, year, and month."""
         month_str = f"{month:02d}"
         file_path = self.funding_path / symbol / f"{year}-{month_str}.parquet"
@@ -195,15 +200,17 @@ class CointegrationFinder:
         else:
             result = resampled_klines
             # Add empty funding rate columns
-            result['fundingRate'] = 0.0
-            result['funding_interval_hours'] = 8.0
+            result["fundingRate"] = 0.0
+            result["funding_interval_hours"] = 8.0
 
         # Reset index and rename
         result = result.reset_index()
-        if 'open_time' in result.columns:
-            result = result.rename(columns={'open_time': 'timestamp'})
-        elif result.index.name in ['timestamp', 'open_time']:
-            result = result.reset_index().rename(columns={result.index.name: 'timestamp'})
+        if "open_time" in result.columns:
+            result = result.rename(columns={"open_time": "timestamp"})
+        elif result.index.name in ["timestamp", "open_time"]:
+            result = result.reset_index().rename(
+                columns={result.index.name: "timestamp"}
+            )
 
         return result
 
@@ -236,9 +243,9 @@ class CointegrationFinder:
 
         return df_resampled
 
-    def merge_kline_with_funding(self, 
-                                 kline_df: pd.DataFrame, 
-                                 funding_df: pd.DataFrame) -> pd.DataFrame:
+    def merge_kline_with_funding(
+        self, kline_df: pd.DataFrame, funding_df: pd.DataFrame
+    ) -> pd.DataFrame:
         """Merge kline data with funding rate data."""
         # Select only funding rate columns
         funding_cols = ["fundingRate"]
@@ -256,13 +263,12 @@ class CointegrationFinder:
 
         return combined_df
 
-    def test_pair_cointegration(self, 
-                               symbol1: str, 
-                               symbol2: str,
-                               data_dict: Dict[str, pd.DataFrame]) -> Optional[Dict]:
+    def test_pair_cointegration(
+        self, symbol1: str, symbol2: str, data_dict: Dict[str, pd.DataFrame]
+    ) -> Optional[Dict]:
         """
         Test cointegration between two symbols.
-        
+
         Returns:
             Dictionary with cointegration results or None if test fails
         """
@@ -284,25 +290,30 @@ class CointegrationFinder:
             coint_result = self.backtester.check_cointegration(
                 pair_data[f"{symbol1}_close"],
                 pair_data[f"{symbol2}_close"],
-                significance_level=self.significance_level
+                significance_level=self.significance_level,
             )
 
             # Add additional information
-            coint_result['symbol1'] = symbol1
-            coint_result['symbol2'] = symbol2
-            coint_result['data_points'] = len(pair_data)
-            coint_result['start_date'] = pair_data.index[0].isoformat()
-            coint_result['end_date'] = pair_data.index[-1].isoformat()
+            coint_result["symbol1"] = symbol1
+            coint_result["symbol2"] = symbol2
+            coint_result["data_points"] = len(pair_data)
+            coint_result["start_date"] = pair_data.index[0].isoformat()
+            coint_result["end_date"] = pair_data.index[-1].isoformat()
 
             # Calculate correlation
-            correlation = pair_data[f"{symbol1}_close"].corr(pair_data[f"{symbol2}_close"])
-            coint_result['correlation'] = correlation
+            correlation = pair_data[f"{symbol1}_close"].corr(
+                pair_data[f"{symbol2}_close"]
+            )
+            coint_result["correlation"] = correlation
 
             # Analyze spread properties if cointegrated
-            if coint_result['is_cointegrated']:
-                spread = pair_data[f"{symbol1}_close"] - coint_result['hedge_ratio'] * pair_data[f"{symbol2}_close"]
+            if coint_result["is_cointegrated"]:
+                spread = (
+                    pair_data[f"{symbol1}_close"]
+                    - coint_result["hedge_ratio"] * pair_data[f"{symbol2}_close"]
+                )
                 spread_props = analyze_spread_properties(spread)
-                coint_result['spread_properties'] = spread_props
+                coint_result["spread_properties"] = spread_props
 
             return coint_result
 
@@ -365,11 +376,16 @@ class CointegrationFinder:
             # Parallel processing
             with ProcessPoolExecutor(max_workers=self.n_jobs) as executor:
                 futures = {
-                    executor.submit(self.test_pair_cointegration, s1, s2, data_dict): (s1, s2)
+                    executor.submit(self.test_pair_cointegration, s1, s2, data_dict): (
+                        s1,
+                        s2,
+                    )
                     for s1, s2 in symbol_pairs
                 }
 
-                for future in tqdm(as_completed(futures), total=len(futures), desc="Testing pairs"):
+                for future in tqdm(
+                    as_completed(futures), total=len(futures), desc="Testing pairs"
+                ):
                     result = future.result()
                     if result is not None:
                         results.append(result)
@@ -381,10 +397,10 @@ class CointegrationFinder:
                     results.append(result)
 
         # Filter cointegrated pairs
-        cointegrated_pairs = [r for r in results if r['is_cointegrated']]
+        cointegrated_pairs = [r for r in results if r["is_cointegrated"]]
 
         # Sort by p-value
-        cointegrated_pairs.sort(key=lambda x: x['p_value'])
+        cointegrated_pairs.sort(key=lambda x: x["p_value"])
 
         # Prepare final results
         final_results = {
@@ -406,13 +422,15 @@ class CointegrationFinder:
 
         return final_results
 
-    def save_results(self, 
-                    results: Dict, 
-                    output_dir: str = "cointegration_results",
-                    formats: List[str] = ['json', 'csv', 'pickle']) -> None:
+    def save_results(
+        self,
+        results: Dict,
+        output_dir: str = "cointegration_results",
+        formats: List[str] = ["json", "csv", "pickle"],
+    ) -> None:
         """
         Save cointegration results in multiple formats.
-        
+
         Args:
             results: Results dictionary from find_all_cointegrated_pairs
             output_dir: Directory to save results
@@ -422,13 +440,13 @@ class CointegrationFinder:
         output_path.mkdir(exist_ok=True)
 
         # Create timestamp for filenames
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
         # Save as JSON
-        if 'json' in formats:
+        if "json" in formats:
             json_file = output_path / f"cointegration_results_{timestamp}.json"
             try:
-                with open(json_file, 'w') as f:
+                with open(json_file, "w") as f:
                     # Convert numpy types to Python types for JSON serialization
                     json_results = self._convert_for_json(results)
                     json.dump(json_results, f, indent=2)
@@ -437,38 +455,42 @@ class CointegrationFinder:
                 print(f"Warning: Could not save JSON due to serialization error: {e}")
                 print("Falling back to pickle format for complete data preservation.")
                 # Ensure pickle is saved if JSON fails
-                if 'pickle' not in formats:
-                    formats.append('pickle')
+                if "pickle" not in formats:
+                    formats.append("pickle")
 
         # Save as CSV (cointegrated pairs only)
-        if 'csv' in formats:
+        if "csv" in formats:
             csv_file = output_path / f"cointegrated_pairs_{timestamp}.csv"
-            if results['cointegrated_pairs']:
-                df = pd.DataFrame(results['cointegrated_pairs'])
+            if results["cointegrated_pairs"]:
+                df = pd.DataFrame(results["cointegrated_pairs"])
                 # Flatten spread_properties if present
-                if 'spread_properties' in df.columns:
-                    spread_props = pd.json_normalize(df['spread_properties'])
-                    spread_props.columns = [f'spread_{col}' for col in spread_props.columns]
-                    df = pd.concat([df.drop('spread_properties', axis=1), spread_props], axis=1)
+                if "spread_properties" in df.columns:
+                    spread_props = pd.json_normalize(df["spread_properties"])
+                    spread_props.columns = [
+                        f"spread_{col}" for col in spread_props.columns
+                    ]
+                    df = pd.concat(
+                        [df.drop("spread_properties", axis=1), spread_props], axis=1
+                    )
                 df.to_csv(csv_file, index=False)
                 print(f"Saved CSV results to {csv_file}")
 
         # Save as Pickle (preserves all data types)
-        if 'pickle' in formats:
+        if "pickle" in formats:
             pickle_file = output_path / f"cointegration_results_{timestamp}.pkl"
-            with open(pickle_file, 'wb') as f:
+            with open(pickle_file, "wb") as f:
                 pickle.dump(results, f)
             print(f"Saved pickle results to {pickle_file}")
 
         # Save as Parquet (efficient for large datasets)
-        if 'parquet' in formats:
+        if "parquet" in formats:
             parquet_file = output_path / f"cointegrated_pairs_{timestamp}.parquet"
-            if results['cointegrated_pairs']:
-                df = pd.DataFrame(results['cointegrated_pairs'])
+            if results["cointegrated_pairs"]:
+                df = pd.DataFrame(results["cointegrated_pairs"])
                 # Handle nested dictionaries
-                if 'spread_properties' in df.columns:
+                if "spread_properties" in df.columns:
                     # Store as JSON string for parquet compatibility
-                    df['spread_properties'] = df['spread_properties'].apply(json.dumps)
+                    df["spread_properties"] = df["spread_properties"].apply(json.dumps)
                 df.to_parquet(parquet_file, index=False)
                 print(f"Saved parquet results to {parquet_file}")
 
@@ -527,11 +549,11 @@ class CointegrationFinder:
                     return str(obj)
 
         # Handle pandas Timestamp
-        if hasattr(pd, 'Timestamp') and isinstance(obj, pd.Timestamp):
+        if hasattr(pd, "Timestamp") and isinstance(obj, pd.Timestamp):
             return obj.isoformat()
 
         # Handle pandas NaT (Not a Time) - but check type first
-        if hasattr(pd, 'NaT') and obj is pd.NaT:
+        if hasattr(pd, "NaT") and obj is pd.NaT:
             return None
 
         # Handle other pandas null values
@@ -542,10 +564,10 @@ class CointegrationFinder:
             pass  # obj is not a valid input for pd.isna
 
         # Handle objects with .item() method (like numpy scalars)
-        if hasattr(obj, 'item'):
+        if hasattr(obj, "item"):
             try:
                 # Check if it's truly a scalar (0-dimensional)
-                if hasattr(obj, 'shape') and obj.shape == ():
+                if hasattr(obj, "shape") and obj.shape == ():
                     return obj.item()
             except (ValueError, AttributeError, TypeError):
                 pass
@@ -558,13 +580,13 @@ class CointegrationFinder:
 
     def _save_summary_report(self, results: Dict, filepath: Path) -> None:
         """Save a human-readable summary report."""
-        with open(filepath, 'w') as f:
+        with open(filepath, "w") as f:
             f.write("=" * 80 + "\n")
             f.write("COINTEGRATION ANALYSIS SUMMARY REPORT\n")
             f.write("=" * 80 + "\n\n")
 
             # Metadata
-            meta = results['metadata']
+            meta = results["metadata"]
             f.write("Analysis Parameters:\n")
             f.write("-" * 40 + "\n")
             f.write(f"Analysis Date: {meta['analysis_date']}\n")
@@ -588,25 +610,29 @@ class CointegrationFinder:
             f.write(f"Symbols with Sufficient Data: {meta['symbols_with_data']}\n")
             f.write(f"Total Pairs Tested: {meta['total_pairs_tested']}\n")
             f.write(f"Cointegrated Pairs Found: {meta['cointegrated_pairs_found']}\n")
-            if meta['total_pairs_tested'] > 0:
-                f.write(f"Success Rate: {meta['cointegrated_pairs_found']/meta['total_pairs_tested']*100:.2f}%\n\n")
+            if meta["total_pairs_tested"] > 0:
+                f.write(
+                    f"Success Rate: {meta['cointegrated_pairs_found']/meta['total_pairs_tested']*100:.2f}%\n\n"
+                )
             else:
                 f.write("Success Rate: N/A (no pairs tested)\n\n")
 
             # Top cointegrated pairs
-            if results['cointegrated_pairs']:
+            if results["cointegrated_pairs"]:
                 f.write("Top 20 Cointegrated Pairs (sorted by p-value):\n")
                 f.write("-" * 40 + "\n")
-                for i, pair in enumerate(results['cointegrated_pairs'][:20], 1):
+                for i, pair in enumerate(results["cointegrated_pairs"][:20], 1):
                     f.write(f"{i:2d}. {pair['symbol1']:12s} - {pair['symbol2']:12s} | ")
                     f.write(f"p-value: {pair['p_value']:.6f} | ")
                     f.write(f"hedge_ratio: {pair['hedge_ratio']:.4f} | ")
                     f.write(f"correlation: {pair['correlation']:.4f}\n")
 
-                    if 'spread_properties' in pair and pair['spread_properties']:
-                        props = pair['spread_properties']
-                        if props.get('half_life') is not None:
-                            f.write(f"    → Half-life: {props.get('half_life'):.1f} periods | ")
+                    if "spread_properties" in pair and pair["spread_properties"]:
+                        props = pair["spread_properties"]
+                        if props.get("half_life") is not None:
+                            f.write(
+                                f"    → Half-life: {props.get('half_life'):.1f} periods | "
+                            )
                         else:
                             f.write(f"    → Half-life: N/A | ")
                         f.write(f"Mean: {props.get('mean', 0):.6f} | ")
@@ -617,30 +643,30 @@ class CointegrationFinder:
     def load_results(self, filepath: str) -> Dict:
         """
         Load previously saved results.
-        
+
         Args:
             filepath: Path to the results file
-            
+
         Returns:
             Results dictionary
         """
         filepath = Path(filepath)
 
-        if filepath.suffix == '.json':
-            with open(filepath, 'r') as f:
+        if filepath.suffix == ".json":
+            with open(filepath, "r") as f:
                 return json.load(f)
-        elif filepath.suffix == '.pkl':
-            with open(filepath, 'rb') as f:
+        elif filepath.suffix == ".pkl":
+            with open(filepath, "rb") as f:
                 return pickle.load(f)
-        elif filepath.suffix == '.csv':
+        elif filepath.suffix == ".csv":
             df = pd.read_csv(filepath)
-            return {'cointegrated_pairs': df.to_dict('records')}
-        elif filepath.suffix == '.parquet':
+            return {"cointegrated_pairs": df.to_dict("records")}
+        elif filepath.suffix == ".parquet":
             df = pd.read_parquet(filepath)
             # Parse JSON strings back to dictionaries if needed
-            if 'spread_properties' in df.columns:
-                df['spread_properties'] = df['spread_properties'].apply(json.loads)
-            return {'cointegrated_pairs': df.to_dict('records')}
+            if "spread_properties" in df.columns:
+                df["spread_properties"] = df["spread_properties"].apply(json.loads)
+            return {"cointegrated_pairs": df.to_dict("records")}
         else:
             raise ValueError(f"Unsupported file format: {filepath.suffix}")
 
@@ -747,9 +773,9 @@ def main():
     finder = CointegrationFinder(
         base_path="binance_futures_data",
         resample_interval="30T",  # 30-minute candles
-        min_data_points=1000,      # Minimum data points required
-        significance_level=0.05,    # 5% significance level
-        n_jobs=-1                   # Use all CPU cores
+        min_data_points=1000,  # Minimum data points required
+        significance_level=0.05,  # 5% significance level
+        n_jobs=-1,  # Use all CPU cores
     )
 
     # Find cointegrated pairs with per-year month specification
@@ -768,20 +794,24 @@ def main():
     print("ANALYSIS COMPLETE")
     print("=" * 80)
     print(f"Total pairs tested: {results['metadata']['total_pairs_tested']}")
-    print(f"Cointegrated pairs found: {results['metadata']['cointegrated_pairs_found']}")
+    print(
+        f"Cointegrated pairs found: {results['metadata']['cointegrated_pairs_found']}"
+    )
 
-    if results['cointegrated_pairs']:
+    if results["cointegrated_pairs"]:
         print(f"\nTop 10 cointegrated pairs:")
-        for i, pair in enumerate(results['cointegrated_pairs'][:10], 1):
-            print(f"{i:2d}. {pair['symbol1']:10s} - {pair['symbol2']:10s} | "
-                  f"p-value: {pair['p_value']:.6f} | "
-                  f"hedge_ratio: {pair['hedge_ratio']:.4f}")
+        for i, pair in enumerate(results["cointegrated_pairs"][:10], 1):
+            print(
+                f"{i:2d}. {pair['symbol1']:10s} - {pair['symbol2']:10s} | "
+                f"p-value: {pair['p_value']:.6f} | "
+                f"hedge_ratio: {pair['hedge_ratio']:.4f}"
+            )
 
     # Save results in multiple formats
     finder.save_results(
         results,
         output_dir="cointegration_results",
-        formats=['json', 'csv', 'pickle', 'parquet']
+        formats=["json", "csv", "pickle", "parquet"],
     )
 
     print("\nResults saved to 'cointegration_results' directory")

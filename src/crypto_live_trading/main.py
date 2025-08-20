@@ -3,7 +3,8 @@ Live Mean Reversion Trading System
 Entry point for live trading loop and orchestration.
 """
 
-import time
+import os
+from datetime import datetime
 from strategies.mean_reversion import LiveMeanReversionStrategy
 from execution.trade_executor import TradeExecutor
 from state.position_tracker import PositionTracker
@@ -11,51 +12,141 @@ from utils.live_data_manager import LiveDataManager
 from utils.scheduler import every_4h
 
 # Load monthly cointegration pairs (update this path as needed)
-COINTEGRATION_PAIRS_PATH = "state/cointegrated_pairs.json"
+COINTEGRATION_PAIRS_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "crypto_live_trading",
+    "state",
+)
 
 # Strategy parameters (can be loaded from config)
 FIXED_PARAMS = {
     "lookback_period": 60,
-    "entry_threshold": 1.0,
-    "exit_threshold": 0.5,
-    "stop_loss_threshold": 3.5,
+    "entry_threshold": 2.5,
+    "exit_threshold": 0.75,
+    "stop_loss_threshold": 2.6,
 }
 
 
 def main():
+    print("=" * 80)
+    print("LIVE MEAN REVERSION TRADING SYSTEM")
+    print("=" * 80)
+
     # Initialize components
-    data_manager = LiveDataManager()
+    data_manager = LiveDataManager(timeframe="4h", lookback_periods=100)
     strategy = LiveMeanReversionStrategy(**FIXED_PARAMS)
-    executor = TradeExecutor()
+    executor = TradeExecutor(sandbox=True, portfolio_value=10000)  # Paper trading mode
     tracker = PositionTracker()
 
     # Load cointegrated pairs
-    pairs = tracker.load_cointegrated_pairs(COINTEGRATION_PAIRS_PATH)
-    print(f"Loaded {len(pairs)} cointegrated pairs for trading.")
+    coint_results = tracker.load_cointegrated_pairs(COINTEGRATION_PAIRS_PATH)
+
+    pairs = tracker.filter_top_pairs(
+        coint_results,
+        n_pairs=100,
+        max_p_value=0.0276,
+        min_correlation=0.884,
+        max_half_life=23.4,
+    )
+
+    if not pairs:
+        print(
+            "❌ No cointegrated pairs found! Please run generate_cointegrated_pairs.py first."
+        )
+        return
+
+    print(f"✅ Loaded {len(pairs)} cointegrated pairs for trading.")
+    print(f"📊 Strategy Parameters:")
+    print(f"   • Lookback Period: {FIXED_PARAMS['lookback_period']}")
+    print(f"   • Entry Threshold: {FIXED_PARAMS['entry_threshold']}")
+    print(f"   • Exit Threshold: {FIXED_PARAMS['exit_threshold']}")
+    print(f"   • Stop Loss Threshold: {FIXED_PARAMS['stop_loss_threshold']}")
 
     # Main live trading loop (every 4h)
-    for _ in every_4h():
-        print("\n[Live Trading] Running mean reversion strategy...")
-        for pair in pairs:
-            symbol1, symbol2 = pair["symbol1"], pair["symbol2"]
+    print(f"\n{'='*60}")
+    print(f"Time: {datetime.now()}")
+    print(f"{'='*60}")
+
+    signals_generated = 0
+    positions_opened = 0
+    positions_closed = 0
+
+    for i, pair in enumerate(pairs, 1):  # Limit to top 10 pairs for testing
+        symbol1, symbol2 = pair["symbol1"], pair["symbol2"]
+
+        print(f"\n[{i:2d}/{len(pairs)+1}] Processing {symbol1}-{symbol2}")
+        try:
             # Load latest data
             df1, df2 = data_manager.get_latest_pair_data(symbol1, symbol2)
+
+            if df1 is None or df2 is None:
+                print(f"   ❌ Failed to fetch data")
+                continue
+
+            print(f"   📊 Data: {len(df1)} bars, latest: {df1.index[-1]}")
+
             # Generate signal
-            signal = strategy.generate_signal(df1, df2)
+            signal = strategy.generate_signal(df1, df2, pair_info=pair)
+            signals_generated += 1
+
+            print(f"   🎯 Signal: {signal.reason}")
+
+            if signal.is_entry:
+                import pdb
+
+                pdb.set_trace()
+
             # Check position state
             position = tracker.get_position(symbol1, symbol2)
+
             if signal.is_entry and not position:
-                print(f"Opening position for {symbol1}-{symbol2}")
-                executor.open_position(symbol1, symbol2, signal)
-                tracker.record_open(symbol1, symbol2, signal)
+                print(f"   🟢 Opening {signal.side} position")
+                result = executor.open_position(symbol1, symbol2, signal)
+                if result:
+                    tracker.record_open(symbol1, symbol2, signal)
+                    positions_opened += 1
+
             elif signal.is_exit and position:
-                print(f"Closing position for {symbol1}-{symbol2}")
-                executor.close_position(symbol1, symbol2, signal)
-                tracker.record_close(symbol1, symbol2, signal)
+                print(f"   🔴 Closing position (was {position.side})")
+                result = executor.close_position(symbol1, symbol2, signal)
+                if result:
+                    tracker.record_close(symbol1, symbol2, signal)
+                    positions_closed += 1
+
+            elif position:
+                print(
+                    f"   ⏸️  Holding {position.side} position (opened: {position.entry_time})"
+                )
+
             else:
-                print(f"No action for {symbol1}-{symbol2}")
-        print("Sleeping until next 4h interval...")
-        time.sleep(1)  # Replace with proper scheduling
+                print(f"   ⏹️  No action")
+
+        except Exception as e:
+            print(f"   ❌ Error processing {symbol1}-{symbol2}: {e}")
+
+        # Cycle summary
+        open_positions = tracker.get_all_open_positions()
+
+        print(f"\n{'='*60}")
+        print(f"{'='*60}")
+        print(f"📊 Pairs processed: 10")
+        print(f"🎯 Signals generated: {signals_generated}")
+        print(f"🟢 Positions opened: {positions_opened}")
+        print(f"🔴 Positions closed: {positions_closed}")
+        print(f"📈 Active positions: {len(open_positions)}")
+
+        if open_positions:
+            print(f"\nActive Positions:")
+            for pair_key, pos in open_positions.items():
+                print(
+                    f"  • {pos.symbol1}-{pos.symbol2}: {pos.side} (opened: {pos.entry_time[:19]})"
+                )
+
+        print(f"\n⏰ Waiting for next 4-hour cycle...")
+
+        # For testing, break after first cycle
+        # Remove this break for continuous operation
+        # break
 
 
 if __name__ == "__main__":

@@ -4,6 +4,7 @@ Runs historical cointegration analysis and saves tradable pairs for live trading
 """
 
 import os
+import numpy as np
 from datetime import datetime
 from src.crypto_backtesting.data.manager import DataManager
 from src.crypto_backtesting.analysis.performance import PerformanceAnalyzer
@@ -49,13 +50,12 @@ def main():
     # Save pairs for live trading
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     out_path = os.path.join(OUTPUT_DIR, RESULTS_FILENAME)
-    import json
 
-    with open(out_path, "w") as f:
-        json.dump(pairs, f, indent=2)
+    finder.save_results(
+        results, output_dir=OUTPUT_DIR, formats=["json", "csv", "pickle", "parquet"]
+    )
+
     print(f"Saved cointegrated pairs to {out_path}")
-
-    print("Next: Use these pairs in live trading system.")
 
 
 if __name__ == "__main__":
