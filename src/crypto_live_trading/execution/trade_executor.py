@@ -44,6 +44,9 @@ class TradeExecutor:
                 "secret": secret,
                 "sandbox": sandbox,
                 "enableRateLimit": True,
+                "options": {
+                    "defaultType": "future",
+                },
             }
         )
         self.portfolio_value = portfolio_value
@@ -113,8 +116,8 @@ class TradeExecutor:
             else:
                 # Real trading mode - set leverage first
                 try:
-                    self.exchange.set_leverage(self.leverage, symbol1_ccxt)
-                    self.exchange.set_leverage(self.leverage, symbol2_ccxt)
+                    self._set_leverage_and_margin(symbol1_ccxt, self.leverage)
+                    self._set_leverage_and_margin(symbol2_ccxt, self.leverage)
                 except Exception as e:
                     print(f"Warning: Could not set leverage: {e}")
 
@@ -271,3 +274,41 @@ class TradeExecutor:
             print(f"Error calculating position sizes: {e}")
             # Return conservative default sizes with dummy prices
             return 0.001, 0.001, 50000, 3000
+
+    def _set_leverage_and_margin(self, symbol, leverage, margin_type="ISOLATED"):
+        """
+        Set margin type and leverage for a symbol on Binance Futures.
+
+        Args:
+            symbol: Trading pair (e.g., 'BTC/USDT')
+            leverage: Desired leverage (e.g., 10)
+            margin_type: Margin type ('ISOLATED' or 'CROSS'), default 'ISOLATED'
+        """
+        try:
+            market = self.exchange.market(symbol)
+            symbol_id = market["id"]
+
+            # Set margin type first (ignore errors if already set)
+            try:
+                self.exchange.fapiPrivatePostMarginType(
+                    {"symbol": symbol_id, "marginType": margin_type}
+                )
+                print(f"  Set margin type to {margin_type} for {symbol}")
+            except Exception as e:
+                # Ignore errors - margin type might already be set
+                print(
+                    f"  Margin type already set for {symbol} (or error: {str(e)[:50]})"
+                )
+
+            # Set leverage
+            try:
+                self.exchange.fapiPrivatePostLeverage(
+                    {"symbol": symbol_id, "leverage": leverage}
+                )
+                print(f"  Set leverage to {leverage}x for {symbol}")
+            except Exception as e:
+                print(f"  Warning: Could not set leverage for {symbol}: {e}")
+
+        except Exception as e:
+            print(f"  Error setting leverage for {symbol}: {e}")
+            # Don't raise exception - continue with trading even if leverage setting fails
