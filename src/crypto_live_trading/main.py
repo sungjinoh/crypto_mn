@@ -54,7 +54,7 @@ def main():
     data_manager = LiveDataManager(timeframe="4h", lookback_periods=100)
     strategy = LiveMeanReversionStrategy(**FIXED_PARAMS)
     executor = TradeExecutor(
-        sandbox=True,
+        sandbox=False,
         portfolio_value=TRADING_CONFIG["portfolio_value"],
         leverage=TRADING_CONFIG["leverage"],
         max_position_size_usdt=TRADING_CONFIG["max_position_size_usdt"],
