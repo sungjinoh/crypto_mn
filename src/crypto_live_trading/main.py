@@ -14,7 +14,7 @@ from strategies.mean_reversion import LiveMeanReversionStrategy
 from execution.trade_executor import TradeExecutor
 from state.position_tracker import PositionTracker
 from utils.live_data_manager import LiveDataManager
-from utils.scheduler import every_4h
+from utils.slack_util import SlackUtil
 
 # Load monthly cointegration pairs (update this path as needed)
 COINTEGRATION_PAIRS_PATH = os.path.join(
@@ -34,7 +34,7 @@ FIXED_PARAMS = {
 # Trading configuration
 TRADING_CONFIG = {
     "leverage": 5,  # 5x leverage for futures trading
-    "max_position_size_usdt": 200,  # Maximum $200 USDT per leg
+    "max_position_size_usdt": 100,  # Maximum $200 USDT per leg
     "portfolio_value": 1000,  # Portfolio value for risk calculations
 }
 
@@ -60,6 +60,7 @@ def main():
         max_position_size_usdt=TRADING_CONFIG["max_position_size_usdt"],
     )  # Paper trading mode with leverage
     tracker = PositionTracker()
+    slack = SlackUtil()  # Initialize Slack notifications
 
     # Load cointegrated pairs
     coint_results = tracker.load_cointegrated_pairs(COINTEGRATION_PAIRS_PATH)
@@ -93,6 +94,18 @@ def main():
     print(
         f"   • Max Margin per Trade: ${TRADING_CONFIG['max_position_size_usdt']*2/TRADING_CONFIG['leverage']:.2f} USDT"
     )
+
+    # Send system start notification
+    system_config = {
+        "Pairs": f"{len(pairs)} loaded",
+        "Leverage": f"{TRADING_CONFIG['leverage']}x",
+        "Max Position": f"${TRADING_CONFIG['max_position_size_usdt']} USDT per leg",
+        "Portfolio": f"${TRADING_CONFIG['portfolio_value']} USDT",
+        "Lookback": f"{FIXED_PARAMS['lookback_period']} periods",
+        "Entry Threshold": f"{FIXED_PARAMS['entry_threshold']}",
+        "Exit Threshold": f"{FIXED_PARAMS['exit_threshold']}",
+    }
+    slack.notify_system_start(system_config)
 
     # Main live trading loop (every 4h)
     print(f"\n{'='*60}")
@@ -133,12 +146,45 @@ def main():
                     tracker.record_open(symbol1, symbol2, signal)
                     positions_opened += 1
 
+                    # Send Slack notification for position open
+                    try:
+                        position_info = {
+                            "total_notional": f"{TRADING_CONFIG['max_position_size_usdt']*2:.2f}",
+                            "margin_required": f"{TRADING_CONFIG['max_position_size_usdt']*2/TRADING_CONFIG['leverage']:.2f}",
+                        }
+                        slack.notify_position_open(
+                            symbol1, symbol2, signal, position_info
+                        )
+                    except Exception as e:
+                        print(f"   Warning: Slack notification failed: {e}")
+
             elif signal.is_exit and position:
                 print(f"   🔴 Closing position (was {position.side})")
                 result = executor.close_position(symbol1, symbol2, signal)
                 if result:
+                    # Calculate position duration before closing
+                    try:
+                        entry_time = datetime.fromisoformat(position.entry_time)
+                        duration = datetime.now() - entry_time
+                        duration_str = f"{duration.total_seconds()/3600:.1f} hours"
+                    except:
+                        duration_str = "Unknown"
+
                     tracker.record_close(symbol1, symbol2, signal)
                     positions_closed += 1
+
+                    # Send Slack notification for position close
+                    try:
+                        position_info = {
+                            "duration": duration_str,
+                            # Note: P&L calculation would need price tracking
+                            # 'pnl': calculated_pnl  # Add this when P&L tracking is implemented
+                        }
+                        slack.notify_position_close(
+                            symbol1, symbol2, signal, position_info
+                        )
+                    except Exception as e:
+                        print(f"   Warning: Slack notification failed: {e}")
 
             elif position:
                 print(
@@ -149,7 +195,14 @@ def main():
                 print(f"   ⏹️  No action")
 
         except Exception as e:
-            print(f"   ❌ Error processing {symbol1}-{symbol2}: {e}")
+            error_msg = f"Error processing {symbol1}-{symbol2}: {e}"
+            print(f"   ❌ {error_msg}")
+
+            # Send Slack error notification
+            try:
+                slack.notify_error(str(e), symbol1, symbol2)
+            except Exception as slack_error:
+                print(f"   Warning: Slack error notification failed: {slack_error}")
 
         # Cycle summary
         open_positions = tracker.get_all_open_positions()
