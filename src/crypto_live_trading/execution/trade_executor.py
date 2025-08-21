@@ -7,7 +7,15 @@ from datetime import datetime
 
 
 class TradeExecutor:
-    def __init__(self, api_key="", secret="", sandbox=True, portfolio_value=10000):
+    def __init__(
+        self,
+        api_key="",
+        secret="",
+        sandbox=True,
+        portfolio_value=10000,
+        leverage=10,
+        max_position_size_usdt=100,
+    ):
         """
         Initialize trade executor with exchange connection
 
@@ -16,6 +24,8 @@ class TradeExecutor:
             secret: Binance API secret
             sandbox: Use testnet for testing
             portfolio_value: Portfolio value for position sizing
+            leverage: Leverage multiplier for futures trading
+            max_position_size_usdt: Maximum position size per leg in USDT
         """
         self.exchange = ccxt.binance(
             {
@@ -26,6 +36,8 @@ class TradeExecutor:
             }
         )
         self.portfolio_value = portfolio_value
+        self.leverage = leverage
+        self.max_position_size_usdt = max_position_size_usdt
         self.risk_per_trade = 0.02  # 2% risk per trade
 
     def open_position(self, symbol1, symbol2, signal):
@@ -46,7 +58,7 @@ class TradeExecutor:
             symbol2_ccxt = self._format_symbol(symbol2)
 
             # Calculate position sizes
-            symbol1_size, symbol2_size = self._calculate_position_sizes(
+            symbol1_size, symbol2_size, price1, price2 = self._calculate_position_sizes(
                 symbol1_ccxt, symbol2_ccxt, signal
             )
 
@@ -58,10 +70,16 @@ class TradeExecutor:
             if self.exchange.sandbox or not self.exchange.apiKey:
                 # Paper trading mode
                 print(
-                    f"  [PAPER] {symbol1_side.upper()} {symbol1_size:.6f} {symbol1_ccxt}"
+                    f"  [PAPER] {symbol1_side.upper()} {symbol1_size:.6f} {symbol1_ccxt} (Leverage: {self.leverage}x)"
                 )
                 print(
-                    f"  [PAPER] {symbol2_side.upper()} {symbol2_size:.6f} {symbol2_ccxt}"
+                    f"  [PAPER] {symbol2_side.upper()} {symbol2_size:.6f} {symbol2_ccxt} (Leverage: {self.leverage}x)"
+                )
+                print(
+                    f"  [PAPER] Position size: ${symbol1_size*price1:.2f} + ${symbol2_size*price2:.2f} USDT notional"
+                )
+                print(
+                    f"  [PAPER] Margin required: ${(symbol1_size*price1 + symbol2_size*price2)/self.leverage:.2f} USDT"
                 )
 
                 # Simulate successful orders
@@ -69,14 +87,26 @@ class TradeExecutor:
                     "symbol1_order": {
                         "id": f"paper_{datetime.now().timestamp()}",
                         "status": "filled",
+                        "size": symbol1_size,
+                        "price": price1,
+                        "leverage": self.leverage,
                     },
                     "symbol2_order": {
                         "id": f"paper_{datetime.now().timestamp()}",
                         "status": "filled",
+                        "size": symbol2_size,
+                        "price": price2,
+                        "leverage": self.leverage,
                     },
                 }
             else:
-                # Real trading mode
+                # Real trading mode - set leverage first
+                try:
+                    self.exchange.set_leverage(self.leverage, symbol1_ccxt)
+                    self.exchange.set_leverage(self.leverage, symbol2_ccxt)
+                except Exception as e:
+                    print(f"Warning: Could not set leverage: {e}")
+
                 symbol1_order = self.exchange.create_market_order(
                     symbol1_ccxt, symbol1_side, symbol1_size
                 )
@@ -114,7 +144,7 @@ class TradeExecutor:
             # In a real system, you'd track the exact position sizes
 
             # Calculate position sizes (reverse of opening)
-            symbol1_size, symbol2_size = self._calculate_position_sizes(
+            symbol1_size, symbol2_size, price1, price2 = self._calculate_position_sizes(
                 symbol1_ccxt, symbol2_ccxt, signal
             )
 
@@ -175,14 +205,14 @@ class TradeExecutor:
 
     def _calculate_position_sizes(self, symbol1, symbol2, signal):
         """
-        Calculate position sizes based on portfolio value and risk management
+        Calculate position sizes based on portfolio value, leverage, and risk management
 
         Args:
             symbol1, symbol2: CCXT formatted symbols
             signal: Trading signal
 
         Returns:
-            symbol1_size, symbol2_size: Position sizes in base currency
+            symbol1_size, symbol2_size, price1, price2: Position sizes and current prices
         """
         try:
             # Get current prices
@@ -192,18 +222,41 @@ class TradeExecutor:
             price1 = ticker1["last"]
             price2 = ticker2["last"]
 
-            # Calculate risk-adjusted position size
-            risk_amount = self.portfolio_value * self.risk_per_trade
+            # Calculate notional values based on max position size
+            # Use leverage to determine effective buying power
+            max_notional_per_leg = self.max_position_size_usdt
 
-            # Simple position sizing - can be enhanced with volatility adjustments
-            base_notional = risk_amount / 2  # Split risk between two legs
+            # Calculate position sizes for each leg
+            symbol1_notional = min(max_notional_per_leg, self.max_position_size_usdt)
+            symbol2_notional = min(
+                max_notional_per_leg,
+                self.max_position_size_usdt * abs(signal.hedge_ratio),
+            )
 
-            symbol1_size = abs(base_notional / price1)
-            symbol2_size = abs(base_notional / price2 * abs(signal.hedge_ratio))
+            # Convert notional to actual position sizes
+            symbol1_size = abs(symbol1_notional / price1)
+            symbol2_size = abs(symbol2_notional / price2)
 
-            return symbol1_size, symbol2_size
+            # Apply leverage consideration (with leverage, we need less margin)
+            # But position size remains the same for the notional exposure
+
+            print(f"  Position calculation:")
+            print(
+                f"    Symbol1 ({symbol1}): ${symbol1_notional:.2f} notional = {symbol1_size:.6f} units @ ${price1:.2f}"
+            )
+            print(
+                f"    Symbol2 ({symbol2}): ${symbol2_notional:.2f} notional = {symbol2_size:.6f} units @ ${price2:.2f}"
+            )
+            print(
+                f"    Total notional: ${symbol1_notional + symbol2_notional:.2f} USDT"
+            )
+            print(
+                f"    Margin required: ${(symbol1_notional + symbol2_notional)/self.leverage:.2f} USDT"
+            )
+
+            return symbol1_size, symbol2_size, price1, price2
 
         except Exception as e:
             print(f"Error calculating position sizes: {e}")
-            # Return conservative default sizes
-            return 0.001, 0.001
+            # Return conservative default sizes with dummy prices
+            return 0.001, 0.001, 50000, 3000

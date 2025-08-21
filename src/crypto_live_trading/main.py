@@ -26,6 +26,13 @@ FIXED_PARAMS = {
     "stop_loss_threshold": 2.6,
 }
 
+# Trading configuration
+TRADING_CONFIG = {
+    "leverage": 10,  # 10x leverage for futures trading
+    "max_position_size_usdt": 100,  # Maximum $100 USDT per leg
+    "portfolio_value": 10000,  # Portfolio value for risk calculations
+}
+
 
 def main():
     print("=" * 80)
@@ -35,7 +42,12 @@ def main():
     # Initialize components
     data_manager = LiveDataManager(timeframe="4h", lookback_periods=100)
     strategy = LiveMeanReversionStrategy(**FIXED_PARAMS)
-    executor = TradeExecutor(sandbox=True, portfolio_value=10000)  # Paper trading mode
+    executor = TradeExecutor(
+        sandbox=True,
+        portfolio_value=TRADING_CONFIG["portfolio_value"],
+        leverage=TRADING_CONFIG["leverage"],
+        max_position_size_usdt=TRADING_CONFIG["max_position_size_usdt"],
+    )  # Paper trading mode with leverage
     tracker = PositionTracker()
 
     # Load cointegrated pairs
@@ -61,6 +73,15 @@ def main():
     print(f"   • Entry Threshold: {FIXED_PARAMS['entry_threshold']}")
     print(f"   • Exit Threshold: {FIXED_PARAMS['exit_threshold']}")
     print(f"   • Stop Loss Threshold: {FIXED_PARAMS['stop_loss_threshold']}")
+    print(f"💰 Trading Configuration:")
+    print(f"   • Leverage: {TRADING_CONFIG['leverage']}x")
+    print(
+        f"   • Max Position Size: ${TRADING_CONFIG['max_position_size_usdt']} USDT per leg"
+    )
+    print(f"   • Portfolio Value: ${TRADING_CONFIG['portfolio_value']} USDT")
+    print(
+        f"   • Max Margin per Trade: ${TRADING_CONFIG['max_position_size_usdt']*2/TRADING_CONFIG['leverage']:.2f} USDT"
+    )
 
     # Main live trading loop (every 4h)
     print(f"\n{'='*60}")
