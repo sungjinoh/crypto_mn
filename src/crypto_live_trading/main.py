@@ -123,11 +123,6 @@ def main():
 
             print(f"   🎯 Signal: {signal.reason}")
 
-            if signal.is_entry:
-                import pdb
-
-                pdb.set_trace()
-
             # Check position state
             position = tracker.get_position(symbol1, symbol2)
 
