@@ -5,6 +5,11 @@ Entry point for live trading loop and orchestration.
 
 import os
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
 from strategies.mean_reversion import LiveMeanReversionStrategy
 from execution.trade_executor import TradeExecutor
 from state.position_tracker import PositionTracker
@@ -28,9 +33,9 @@ FIXED_PARAMS = {
 
 # Trading configuration
 TRADING_CONFIG = {
-    "leverage": 10,  # 10x leverage for futures trading
-    "max_position_size_usdt": 100,  # Maximum $100 USDT per leg
-    "portfolio_value": 10000,  # Portfolio value for risk calculations
+    "leverage": 5,  # 5x leverage for futures trading
+    "max_position_size_usdt": 200,  # Maximum $200 USDT per leg
+    "portfolio_value": 1000,  # Portfolio value for risk calculations
 }
 
 
@@ -38,6 +43,12 @@ def main():
     print("=" * 80)
     print("LIVE MEAN REVERSION TRADING SYSTEM")
     print("=" * 80)
+
+    # Check if API keys are loaded
+    api_key_loaded = bool(os.getenv("ZZT_BINANCE_KEY"))
+    api_secret_loaded = bool(os.getenv("ZZT_BINANCE_SECRET"))
+    print(f"🔑 API Key loaded: {'✅' if api_key_loaded else '❌'}")
+    print(f"🔐 API Secret loaded: {'✅' if api_secret_loaded else '❌'}")
 
     # Initialize components
     data_manager = LiveDataManager(timeframe="4h", lookback_periods=100)

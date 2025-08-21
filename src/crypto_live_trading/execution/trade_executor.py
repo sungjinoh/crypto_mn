@@ -2,15 +2,20 @@
 Trade Executor - Handles order placement and execution via CCXT
 """
 
+import os
 import ccxt
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 
 class TradeExecutor:
     def __init__(
         self,
-        api_key="",
-        secret="",
+        api_key=None,
+        secret=None,
         sandbox=True,
         portfolio_value=10000,
         leverage=10,
@@ -20,13 +25,19 @@ class TradeExecutor:
         Initialize trade executor with exchange connection
 
         Args:
-            api_key: Binance API key
-            secret: Binance API secret
+            api_key: Binance API key (if None, loads from ZZT_BINANCE_KEY env var)
+            secret: Binance API secret (if None, loads from ZZT_BINANCE_SECRET env var)
             sandbox: Use testnet for testing
             portfolio_value: Portfolio value for position sizing
             leverage: Leverage multiplier for futures trading
             max_position_size_usdt: Maximum position size per leg in USDT
         """
+        # Load API credentials from environment if not provided
+        if api_key is None:
+            api_key = os.getenv("ZZT_BINANCE_KEY", "")
+        if secret is None:
+            secret = os.getenv("ZZT_BINANCE_SECRET", "")
+
         self.exchange = ccxt.binance(
             {
                 "apiKey": api_key,
