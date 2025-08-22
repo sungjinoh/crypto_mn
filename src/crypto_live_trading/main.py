@@ -191,6 +191,36 @@ def main():
                     f"   ⏸️  Holding {position.side} position (opened: {position.entry_time})"
                 )
 
+                # Monitor margin levels for existing position
+                try:
+                    margin_status = executor.monitor_position_margin(
+                        symbol1, symbol2, slack
+                    )
+
+                    if margin_status.get("overall_status") == "attention_needed":
+                        print(f"   ⚠️  Margin attention needed for {symbol1}-{symbol2}")
+
+                        # Log margin actions
+                        for symbol_key in ["symbol1", "symbol2"]:
+                            if symbol_key in margin_status:
+                                status = margin_status[symbol_key]
+                                if status.get("action") != "none":
+                                    print(
+                                        f"      {status.get('message', 'Margin action taken')}"
+                                    )
+                    else:
+                        print(f"   💰 Margin levels healthy for {symbol1}-{symbol2}")
+
+                except Exception as e:
+                    print(f"   ⚠️  Error monitoring margin: {e}")
+                    # Send error notification but continue trading
+                    try:
+                        slack.notify_error(
+                            f"Margin monitoring failed: {e}", symbol1, symbol2
+                        )
+                    except:
+                        pass
+
             else:
                 print(f"   ⏹️  No action")
 

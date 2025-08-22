@@ -149,3 +149,41 @@ class SlackUtil:
 
         # Use blue color for system events
         self.send_msg_to_slack(msg, color="#0099cc")
+
+    def notify_margin_warning(
+        self, symbol, current_margin, liquidation_price, mark_price
+    ):
+        """
+        Send margin warning notification
+        """
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        distance_to_liquidation = abs(mark_price - liquidation_price) / mark_price * 100
+
+        msg = f"⚠️ *MARGIN WARNING* ⚠️\n"
+        msg += f"📅 Time: {timestamp}\n"
+        msg += f"📊 Symbol: {symbol}\n"
+        msg += f"💰 Current Margin: ${current_margin:.2f}\n"
+        msg += f"💀 Liquidation Price: ${liquidation_price:.4f}\n"
+        msg += f"📈 Current Price: ${mark_price:.4f}\n"
+        msg += f"📏 Distance to Liquidation: {distance_to_liquidation:.2f}%\n"
+        msg += f"🚨 Action: Consider adding margin or reducing position"
+
+        # Use orange color for warnings
+        self.send_msg_to_slack(msg, color="#ff9900")
+
+    def notify_margin_healthy(self, summary):
+        """
+        Send margin health summary notification (optional, for periodic updates)
+        """
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        msg = f"💚 *MARGIN HEALTH CHECK* 💚\n"
+        msg += f"📅 Time: {timestamp}\n"
+        msg += f"📊 Active Positions: {summary.get('active_positions', 0)}\n"
+        msg += f"💰 Total Margin Used: ${summary.get('total_margin', 0):.2f}\n"
+        msg += f"🆓 Available Balance: ${summary.get('available_balance', 0):.2f}\n"
+        msg += f"✅ All positions have healthy margins"
+
+        # Use green color for healthy status
+        self.send_msg_to_slack(msg, color="#36a64f")

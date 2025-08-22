@@ -312,3 +312,227 @@ class TradeExecutor:
         except Exception as e:
             print(f"  Error setting leverage for {symbol}: {e}")
             # Don't raise exception - continue with trading even if leverage setting fails
+
+    def monitor_position_margin(self, symbol1, symbol2, slack_util=None):
+        """
+        Monitor margin levels for both symbols in a pairs trade and adjust if needed.
+
+        Args:
+            symbol1, symbol2: Trading symbols
+            slack_util: SlackUtil instance for notifications
+
+        Returns:
+            dict: Summary of margin status and actions taken
+        """
+        try:
+            symbol1_ccxt = self._format_symbol(symbol1)
+            symbol2_ccxt = self._format_symbol(symbol2)
+
+            # Check margin for both symbols
+            symbol1_status = self._check_and_adjust_margin(symbol1_ccxt, slack_util)
+            symbol2_status = self._check_and_adjust_margin(symbol2_ccxt, slack_util)
+
+            return {
+                "symbol1": symbol1_status,
+                "symbol2": symbol2_status,
+                "overall_status": (
+                    "healthy"
+                    if symbol1_status["status"] == "healthy"
+                    and symbol2_status["status"] == "healthy"
+                    else "attention_needed"
+                ),
+            }
+
+        except Exception as e:
+            print(f"  Error monitoring margin for {symbol1}-{symbol2}: {e}")
+            return {"error": str(e)}
+
+    def _check_and_adjust_margin(self, symbol, slack_util=None):
+        """
+        Check and adjust margin for a single symbol.
+
+        Args:
+            symbol: CCXT formatted symbol (e.g., 'BTC/USDT')
+            slack_util: SlackUtil instance for notifications
+
+        Returns:
+            dict: Margin status and actions taken
+        """
+        try:
+            if self.exchange.sandbox or not self.exchange.apiKey:
+                # Paper trading mode - simulate margin check
+                print(f"  [PAPER] Margin check for {symbol} - OK (simulated)")
+                return {
+                    "status": "healthy",
+                    "margin_balance": 100.0,  # Simulated
+                    "action": "none",
+                    "message": "Paper trading - margin OK",
+                }
+
+            # Fetch position information
+            positions = self.exchange.fetch_positions([symbol])
+            if not positions or len(positions) == 0:
+                return {
+                    "status": "no_position",
+                    "action": "none",
+                    "message": f"No position found for {symbol}",
+                }
+
+            position = positions[0]
+
+            # Extract margin information
+            margin_balance = float(position.get("info", {}).get("isolatedMargin", 0))
+            position_amt = float(position.get("info", {}).get("positionAmt", 0))
+            maintenance_margin = float(position.get("maintenanceMargin", 0))
+            entry_price = float(position.get("info", {}).get("entryPrice", 0))
+            liquidation_price = float(
+                position.get("info", {}).get("liquidationPrice", 0)
+            )
+            mark_price = float(position.get("info", {}).get("markPrice", 0))
+            initial_margin_pct = float(
+                position.get("initialMarginPercentage", 0.1)
+            )  # Default 10%
+
+            # Skip if no position
+            if position_amt == 0:
+                return {
+                    "status": "no_position",
+                    "margin_balance": margin_balance,
+                    "action": "none",
+                    "message": f"No active position for {symbol}",
+                }
+
+            # Calculate margin thresholds
+            initial_margin = entry_price * abs(position_amt) * initial_margin_pct
+            upper_threshold = initial_margin * 2  # 200% of initial margin
+            lower_threshold = max(
+                initial_margin / 2, maintenance_margin * 2
+            )  # 50% of initial or 2x maintenance
+
+            print(f"  📊 Margin Status for {symbol}:")
+            print(f"    Current Balance: ${margin_balance:.2f}")
+            print(f"    Initial Margin: ${initial_margin:.2f}")
+            print(f"    Lower Threshold: ${lower_threshold:.2f}")
+            print(f"    Upper Threshold: ${upper_threshold:.2f}")
+            print(
+                f"    Liquidation Price: ${liquidation_price:.4f} (Current: ${mark_price:.4f})"
+            )
+
+            # Check if margin adjustment is needed
+            if margin_balance <= lower_threshold:
+                # Need to add margin
+                new_margin_balance = int(lower_threshold * 2) + 1
+                add_amount = new_margin_balance - margin_balance
+
+                print(f"  🚨 LOW MARGIN ALERT for {symbol}!")
+                print(f"    Adding ${add_amount:.2f} margin")
+
+                try:
+                    # Add margin
+                    response = self.exchange.add_margin(symbol, add_amount)
+
+                    message = f"✅ Added ${add_amount:.2f} margin to {symbol}. New balance: ${new_margin_balance:.2f}"
+                    print(f"    {message}")
+
+                    # Send Slack notification
+                    if slack_util:
+                        slack_util.send_msg_to_slack(
+                            f"💰 MARGIN ADDED\n"
+                            f"Symbol: {symbol}\n"
+                            f"Amount: ${add_amount:.2f}\n"
+                            f"Current: ${margin_balance:.2f} → New: ${new_margin_balance:.2f}\n"
+                            f"Liquidation Price: ${liquidation_price:.4f}",
+                            color="#ffaa00",
+                        )
+
+                    return {
+                        "status": "margin_added",
+                        "margin_balance": new_margin_balance,
+                        "action": "add_margin",
+                        "amount": add_amount,
+                        "message": message,
+                    }
+
+                except Exception as e:
+                    error_msg = f"Failed to add margin to {symbol}: {e}"
+                    print(f"    ❌ {error_msg}")
+
+                    if slack_util:
+                        slack_util.notify_error(
+                            f"Margin addition failed for {symbol}: {e}"
+                        )
+
+                    return {
+                        "status": "error",
+                        "margin_balance": margin_balance,
+                        "action": "add_margin_failed",
+                        "error": str(e),
+                        "message": error_msg,
+                    }
+
+            elif margin_balance >= upper_threshold:
+                # Can reduce margin to optimize capital
+                reduce_amount = int(
+                    (margin_balance - upper_threshold) * 0.8
+                )  # Reduce 80% of excess
+
+                if reduce_amount > 10:  # Only reduce if amount is significant
+                    print(f"  💰 EXCESS MARGIN for {symbol}")
+                    print(f"    Reducing ${reduce_amount:.2f} margin")
+
+                    try:
+                        # Reduce margin
+                        response = self.exchange.reduce_margin(symbol, reduce_amount)
+
+                        new_balance = margin_balance - reduce_amount
+                        message = f"✅ Reduced ${reduce_amount:.2f} margin from {symbol}. New balance: ${new_balance:.2f}"
+                        print(f"    {message}")
+
+                        # Send Slack notification
+                        if slack_util:
+                            slack_util.send_msg_to_slack(
+                                f"💸 MARGIN REDUCED\n"
+                                f"Symbol: {symbol}\n"
+                                f"Amount: ${reduce_amount:.2f}\n"
+                                f"Current: ${margin_balance:.2f} → New: ${new_balance:.2f}\n"
+                                f"Capital freed for other trades",
+                                color="#00aa00",
+                            )
+
+                        return {
+                            "status": "margin_reduced",
+                            "margin_balance": new_balance,
+                            "action": "reduce_margin",
+                            "amount": reduce_amount,
+                            "message": message,
+                        }
+
+                    except Exception as e:
+                        error_msg = f"Failed to reduce margin for {symbol}: {e}"
+                        print(f"    ⚠️ {error_msg}")
+
+                        return {
+                            "status": "reduce_failed",
+                            "margin_balance": margin_balance,
+                            "action": "reduce_margin_failed",
+                            "error": str(e),
+                            "message": error_msg,
+                        }
+            else:
+                # Margin is within healthy range
+                return {
+                    "status": "healthy",
+                    "margin_balance": margin_balance,
+                    "action": "none",
+                    "message": f"Margin healthy for {symbol}: ${margin_balance:.2f}",
+                }
+
+        except Exception as e:
+            error_msg = f"Error checking margin for {symbol}: {e}"
+            print(f"  ❌ {error_msg}")
+            return {
+                "status": "error",
+                "action": "check_failed",
+                "error": str(e),
+                "message": error_msg,
+            }
