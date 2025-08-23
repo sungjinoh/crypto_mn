@@ -75,16 +75,36 @@ class PositionTracker:
 
         # Extract actual executed details if available
         if execution_result:
-            symbol1_executed_size = execution_result.get("symbol1_order", {}).get("size", signal.symbol1_qty)
-            symbol2_executed_size = execution_result.get("symbol2_order", {}).get("size", signal.symbol2_qty)
-            symbol1_executed_side = execution_result.get("symbol1_order", {}).get("side", "")
-            symbol2_executed_side = execution_result.get("symbol2_order", {}).get("side", "")
-            symbol1_entry_price = execution_result.get("symbol1_order", {}).get("price", 0.0)
-            symbol2_entry_price = execution_result.get("symbol2_order", {}).get("price", 0.0)
-            
+            symbol1_executed_size = execution_result.get("symbol1_order", {}).get(
+                "size", abs(signal.symbol1_qty)
+            )
+            symbol2_executed_size = execution_result.get("symbol2_order", {}).get(
+                "size", abs(signal.symbol2_qty)
+            )
+            symbol1_executed_side = execution_result.get("symbol1_order", {}).get(
+                "side", ""
+            )
+            symbol2_executed_side = execution_result.get("symbol2_order", {}).get(
+                "side", ""
+            )
+            symbol1_entry_price = execution_result.get("symbol1_order", {}).get(
+                "price", 0.0
+            )
+            symbol2_entry_price = execution_result.get("symbol2_order", {}).get(
+                "price", 0.0
+            )
+
             # Use actual executed quantities, taking into account the side
-            actual_symbol1_qty = symbol1_executed_size if symbol1_executed_side == "buy" else -symbol1_executed_size
-            actual_symbol2_qty = symbol2_executed_size if symbol2_executed_side == "buy" else -symbol2_executed_size
+            actual_symbol1_qty = (
+                symbol1_executed_size
+                if symbol1_executed_side == "buy"
+                else -symbol1_executed_size
+            )
+            actual_symbol2_qty = (
+                symbol2_executed_size
+                if symbol2_executed_side == "buy"
+                else -symbol2_executed_size
+            )
         else:
             # Fallback to signal quantities if no execution result
             symbol1_executed_size = abs(signal.symbol1_qty)
@@ -119,8 +139,12 @@ class PositionTracker:
         self._save_positions()
 
         print(f"Recorded open position: {symbol1}-{symbol2} {signal.side}")
-        print(f"  Executed: {symbol1} {symbol1_executed_side} {symbol1_executed_size:.6f} @ ${symbol1_entry_price:.2f}")
-        print(f"  Executed: {symbol2} {symbol2_executed_side} {symbol2_executed_size:.6f} @ ${symbol2_entry_price:.2f}")
+        print(
+            f"  Executed: {symbol1} {symbol1_executed_side} {symbol1_executed_size:.6f} @ ${symbol1_entry_price:.2f}"
+        )
+        print(
+            f"  Executed: {symbol2} {symbol2_executed_side} {symbol2_executed_size:.6f} @ ${symbol2_entry_price:.2f}"
+        )
 
     def record_close(self, symbol1, symbol2, signal, execution_result=None):
         """Record position closure with actual execution details"""
@@ -129,29 +153,53 @@ class PositionTracker:
         if pair_key in self.positions:
             closed_position = self.positions[pair_key]
             closed_position.status = "closed"
-            
+
             # Log the actual close execution details
             if execution_result:
-                symbol1_close_size = execution_result.get("symbol1_order", {}).get("size", 0.0)
-                symbol2_close_size = execution_result.get("symbol2_order", {}).get("size", 0.0)
-                symbol1_close_side = execution_result.get("symbol1_order", {}).get("side", "")
-                symbol2_close_side = execution_result.get("symbol2_order", {}).get("side", "")
-                
+                symbol1_close_size = execution_result.get("symbol1_order", {}).get(
+                    "size", 0.0
+                )
+                symbol2_close_size = execution_result.get("symbol2_order", {}).get(
+                    "size", 0.0
+                )
+                symbol1_close_side = execution_result.get("symbol1_order", {}).get(
+                    "side", ""
+                )
+                symbol2_close_side = execution_result.get("symbol2_order", {}).get(
+                    "side", ""
+                )
+
                 print(f"Recorded close position: {symbol1}-{symbol2}")
-                print(f"  Close executed: {symbol1} {symbol1_close_side} {symbol1_close_size:.6f}")
-                print(f"  Close executed: {symbol2} {symbol2_close_side} {symbol2_close_size:.6f}")
-                
+                print(
+                    f"  Close executed: {symbol1} {symbol1_close_side} {symbol1_close_size:.6f}"
+                )
+                print(
+                    f"  Close executed: {symbol2} {symbol2_close_side} {symbol2_close_size:.6f}"
+                )
+
                 # Verify close quantities match open quantities
-                if abs(symbol1_close_size - closed_position.symbol1_executed_size) > 0.000001:
+                if (
+                    abs(symbol1_close_size - closed_position.symbol1_executed_size)
+                    > 0.000001
+                ):
                     print(f"  ⚠️  WARNING: Close quantity mismatch for {symbol1}!")
-                    print(f"      Opened: {closed_position.symbol1_executed_size:.6f}, Closed: {symbol1_close_size:.6f}")
-                    
-                if abs(symbol2_close_size - closed_position.symbol2_executed_size) > 0.000001:
+                    print(
+                        f"      Opened: {closed_position.symbol1_executed_size:.6f}, Closed: {symbol1_close_size:.6f}"
+                    )
+
+                if (
+                    abs(symbol2_close_size - closed_position.symbol2_executed_size)
+                    > 0.000001
+                ):
                     print(f"  ⚠️  WARNING: Close quantity mismatch for {symbol2}!")
-                    print(f"      Opened: {closed_position.symbol2_executed_size:.6f}, Closed: {symbol2_close_size:.6f}")
+                    print(
+                        f"      Opened: {closed_position.symbol2_executed_size:.6f}, Closed: {symbol2_close_size:.6f}"
+                    )
             else:
-                print(f"Recorded close position: {symbol1}-{symbol2} (no execution details)")
-            
+                print(
+                    f"Recorded close position: {symbol1}-{symbol2} (no execution details)"
+                )
+
             self._save_positions()
 
             # Archive closed position (remove from active positions)
@@ -304,17 +352,31 @@ class PositionTracker:
                     "exit_reason": signal.reason,
                 }
             )
-            
+
             # Add exit execution details if available
             if execution_result:
-                trade_record.update({
-                    "exit_symbol1_size": execution_result.get("symbol1_order", {}).get("size", 0.0),
-                    "exit_symbol2_size": execution_result.get("symbol2_order", {}).get("size", 0.0),
-                    "exit_symbol1_side": execution_result.get("symbol1_order", {}).get("side", ""),
-                    "exit_symbol2_side": execution_result.get("symbol2_order", {}).get("side", ""),
-                    "exit_symbol1_price": execution_result.get("symbol1_order", {}).get("price", 0.0),
-                    "exit_symbol2_price": execution_result.get("symbol2_order", {}).get("price", 0.0),
-                })
+                trade_record.update(
+                    {
+                        "exit_symbol1_size": execution_result.get(
+                            "symbol1_order", {}
+                        ).get("size", 0.0),
+                        "exit_symbol2_size": execution_result.get(
+                            "symbol2_order", {}
+                        ).get("size", 0.0),
+                        "exit_symbol1_side": execution_result.get(
+                            "symbol1_order", {}
+                        ).get("side", ""),
+                        "exit_symbol2_side": execution_result.get(
+                            "symbol2_order", {}
+                        ).get("side", ""),
+                        "exit_symbol1_price": execution_result.get(
+                            "symbol1_order", {}
+                        ).get("price", 0.0),
+                        "exit_symbol2_price": execution_result.get(
+                            "symbol2_order", {}
+                        ).get("price", 0.0),
+                    }
+                )
 
             history.append(trade_record)
 
