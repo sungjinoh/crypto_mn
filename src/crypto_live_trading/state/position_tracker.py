@@ -18,13 +18,20 @@ class Position:
     symbol1: str
     symbol2: str
     side: str  # 'long' or 'short'
-    symbol1_qty: float
-    symbol2_qty: float
+    symbol1_qty: float  # Actual executed quantity
+    symbol2_qty: float  # Actual executed quantity
     hedge_ratio: float
     entry_time: str
     entry_spread: float
     entry_z_score: float
     status: str = "open"  # 'open' or 'closed'
+    # Store actual executed order details
+    symbol1_executed_size: float = 0.0
+    symbol2_executed_size: float = 0.0
+    symbol1_executed_side: str = ""  # 'buy' or 'sell'
+    symbol2_executed_side: str = ""  # 'buy' or 'sell'
+    symbol1_entry_price: float = 0.0
+    symbol2_entry_price: float = 0.0
 
 
 class PositionTracker:
@@ -62,41 +69,95 @@ class PositionTracker:
         position = self.positions.get(pair_key)
         return position if position and position.status == "open" else None
 
-    def record_open(self, symbol1, symbol2, signal):
-        """Record a new open position"""
+    def record_open(self, symbol1, symbol2, signal, execution_result=None):
+        """Record a new open position with actual execution details"""
         pair_key = self._get_pair_key(symbol1, symbol2)
+
+        # Extract actual executed details if available
+        if execution_result:
+            symbol1_executed_size = execution_result.get("symbol1_order", {}).get("size", signal.symbol1_qty)
+            symbol2_executed_size = execution_result.get("symbol2_order", {}).get("size", signal.symbol2_qty)
+            symbol1_executed_side = execution_result.get("symbol1_order", {}).get("side", "")
+            symbol2_executed_side = execution_result.get("symbol2_order", {}).get("side", "")
+            symbol1_entry_price = execution_result.get("symbol1_order", {}).get("price", 0.0)
+            symbol2_entry_price = execution_result.get("symbol2_order", {}).get("price", 0.0)
+            
+            # Use actual executed quantities, taking into account the side
+            actual_symbol1_qty = symbol1_executed_size if symbol1_executed_side == "buy" else -symbol1_executed_size
+            actual_symbol2_qty = symbol2_executed_size if symbol2_executed_side == "buy" else -symbol2_executed_size
+        else:
+            # Fallback to signal quantities if no execution result
+            symbol1_executed_size = abs(signal.symbol1_qty)
+            symbol2_executed_size = abs(signal.symbol2_qty)
+            symbol1_executed_side = "buy" if signal.symbol1_qty > 0 else "sell"
+            symbol2_executed_side = "buy" if signal.symbol2_qty > 0 else "sell"
+            symbol1_entry_price = 0.0
+            symbol2_entry_price = 0.0
+            actual_symbol1_qty = signal.symbol1_qty
+            actual_symbol2_qty = signal.symbol2_qty
 
         position = Position(
             symbol1=symbol1,
             symbol2=symbol2,
             side=signal.side,
-            symbol1_qty=signal.symbol1_qty,
-            symbol2_qty=signal.symbol2_qty,
+            symbol1_qty=actual_symbol1_qty,  # Store actual executed quantity
+            symbol2_qty=actual_symbol2_qty,  # Store actual executed quantity
             hedge_ratio=signal.hedge_ratio,
             entry_time=datetime.now().isoformat(),
             entry_spread=signal.spread_value,
             entry_z_score=signal.z_score,
             status="open",
+            symbol1_executed_size=symbol1_executed_size,
+            symbol2_executed_size=symbol2_executed_size,
+            symbol1_executed_side=symbol1_executed_side,
+            symbol2_executed_side=symbol2_executed_side,
+            symbol1_entry_price=symbol1_entry_price,
+            symbol2_entry_price=symbol2_entry_price,
         )
 
         self.positions[pair_key] = position
         self._save_positions()
 
         print(f"Recorded open position: {symbol1}-{symbol2} {signal.side}")
+        print(f"  Executed: {symbol1} {symbol1_executed_side} {symbol1_executed_size:.6f} @ ${symbol1_entry_price:.2f}")
+        print(f"  Executed: {symbol2} {symbol2_executed_side} {symbol2_executed_size:.6f} @ ${symbol2_entry_price:.2f}")
 
-    def record_close(self, symbol1, symbol2, signal):
-        """Record position closure"""
+    def record_close(self, symbol1, symbol2, signal, execution_result=None):
+        """Record position closure with actual execution details"""
         pair_key = self._get_pair_key(symbol1, symbol2)
 
         if pair_key in self.positions:
-            self.positions[pair_key].status = "closed"
+            closed_position = self.positions[pair_key]
+            closed_position.status = "closed"
+            
+            # Log the actual close execution details
+            if execution_result:
+                symbol1_close_size = execution_result.get("symbol1_order", {}).get("size", 0.0)
+                symbol2_close_size = execution_result.get("symbol2_order", {}).get("size", 0.0)
+                symbol1_close_side = execution_result.get("symbol1_order", {}).get("side", "")
+                symbol2_close_side = execution_result.get("symbol2_order", {}).get("side", "")
+                
+                print(f"Recorded close position: {symbol1}-{symbol2}")
+                print(f"  Close executed: {symbol1} {symbol1_close_side} {symbol1_close_size:.6f}")
+                print(f"  Close executed: {symbol2} {symbol2_close_side} {symbol2_close_size:.6f}")
+                
+                # Verify close quantities match open quantities
+                if abs(symbol1_close_size - closed_position.symbol1_executed_size) > 0.000001:
+                    print(f"  ⚠️  WARNING: Close quantity mismatch for {symbol1}!")
+                    print(f"      Opened: {closed_position.symbol1_executed_size:.6f}, Closed: {symbol1_close_size:.6f}")
+                    
+                if abs(symbol2_close_size - closed_position.symbol2_executed_size) > 0.000001:
+                    print(f"  ⚠️  WARNING: Close quantity mismatch for {symbol2}!")
+                    print(f"      Opened: {closed_position.symbol2_executed_size:.6f}, Closed: {symbol2_close_size:.6f}")
+            else:
+                print(f"Recorded close position: {symbol1}-{symbol2} (no execution details)")
+            
             self._save_positions()
 
             # Archive closed position (remove from active positions)
-            closed_position = self.positions.pop(pair_key)
-            self._archive_position(closed_position, signal)
+            self.positions.pop(pair_key)
+            self._archive_position(closed_position, signal, execution_result)
 
-            print(f"Recorded close position: {symbol1}-{symbol2}")
         else:
             print(f"Warning: Tried to close non-existent position {symbol1}-{symbol2}")
 
@@ -222,7 +283,7 @@ class PositionTracker:
         except Exception as e:
             print(f"Error saving positions: {e}")
 
-    def _archive_position(self, position, signal):
+    def _archive_position(self, position, signal, execution_result=None):
         """Archive closed position to trades history"""
         try:
             archive_file = "state/trades_history.json"
@@ -243,6 +304,17 @@ class PositionTracker:
                     "exit_reason": signal.reason,
                 }
             )
+            
+            # Add exit execution details if available
+            if execution_result:
+                trade_record.update({
+                    "exit_symbol1_size": execution_result.get("symbol1_order", {}).get("size", 0.0),
+                    "exit_symbol2_size": execution_result.get("symbol2_order", {}).get("size", 0.0),
+                    "exit_symbol1_side": execution_result.get("symbol1_order", {}).get("side", ""),
+                    "exit_symbol2_side": execution_result.get("symbol2_order", {}).get("side", ""),
+                    "exit_symbol1_price": execution_result.get("symbol1_order", {}).get("price", 0.0),
+                    "exit_symbol2_price": execution_result.get("symbol2_order", {}).get("price", 0.0),
+                })
 
             history.append(trade_record)
 
