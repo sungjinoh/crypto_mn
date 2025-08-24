@@ -142,7 +142,7 @@ class TradeExecutor:
     def close_position(self, symbol1, symbol2, signal, position):
         """
         Close a pairs trading position using actual executed quantities
-        
+
         Args:
             symbol1, symbol2: Trading symbols
             signal: Exit signal
@@ -154,26 +154,34 @@ class TradeExecutor:
             print(f"  Z-score: {signal.z_score:.3f}")
             print(f"  Original position: {position.side}")
 
-            # Convert symbols to CCXT format  
+            # Convert symbols to CCXT format
             symbol1_ccxt = self._format_symbol(symbol1)
             symbol2_ccxt = self._format_symbol(symbol2)
 
             # Use ACTUAL executed quantities and reverse the sides
             symbol1_size = position.symbol1_executed_size
             symbol2_size = position.symbol2_executed_size
-            
+
             # Reverse the original executed sides for closing
             symbol1_side = "sell" if position.symbol1_executed_side == "buy" else "buy"
             symbol2_side = "sell" if position.symbol2_executed_side == "buy" else "buy"
-            
-            print(f"  Closing: {symbol1} {position.symbol1_executed_side} {symbol1_size:.6f} → {symbol1_side} {symbol1_size:.6f}")
-            print(f"  Closing: {symbol2} {position.symbol2_executed_side} {symbol2_size:.6f} → {symbol2_side} {symbol2_size:.6f}")
+
+            print(
+                f"  Closing: {symbol1} {position.symbol1_executed_side} {symbol1_size:.6f} → {symbol1_side} {symbol1_size:.6f}"
+            )
+            print(
+                f"  Closing: {symbol2} {position.symbol2_executed_side} {symbol2_size:.6f} → {symbol2_side} {symbol2_size:.6f}"
+            )
 
             # Place closing orders
             if self.exchange.sandbox or not self.exchange.apiKey:
                 # Paper trading mode
-                print(f"  [PAPER] {symbol1_side.upper()} {symbol1_size:.6f} {symbol1_ccxt}")
-                print(f"  [PAPER] {symbol2_side.upper()} {symbol2_size:.6f} {symbol2_ccxt}")
+                print(
+                    f"  [PAPER] {symbol1_side.upper()} {symbol1_size:.6f} {symbol1_ccxt}"
+                )
+                print(
+                    f"  [PAPER] {symbol2_side.upper()} {symbol2_size:.6f} {symbol2_ccxt}"
+                )
 
                 # Get current prices for reporting
                 try:
@@ -209,8 +217,12 @@ class TradeExecutor:
                     symbol2_ccxt, symbol2_side, symbol2_size
                 )
 
-                print(f"  Close Order 1: {symbol1_order['id']} - {symbol1_order['status']}")
-                print(f"  Close Order 2: {symbol2_order['id']} - {symbol2_order['status']}")
+                print(
+                    f"  Close Order 1: {symbol1_order['id']} - {symbol1_order['status']}"
+                )
+                print(
+                    f"  Close Order 2: {symbol2_order['id']} - {symbol2_order['status']}"
+                )
 
                 return {"symbol1_order": symbol1_order, "symbol2_order": symbol2_order}
 
@@ -248,31 +260,35 @@ class TradeExecutor:
 
             # The signal provides directional quantities (e.g., +1.0, -2.5)
             # We need to scale these to actual position sizes
-            
+
             # Base approach: Use max_position_size_usdt as the reference for symbol1
             symbol1_base_notional = self.max_position_size_usdt
-            
+
             # Calculate symbol1 actual size from base notional and signal quantity
             symbol1_base_size = symbol1_base_notional / price1
             symbol1_size = abs(signal.symbol1_qty) * symbol1_base_size
             symbol1_notional = symbol1_size * price1
-            
+
             # For symbol2: scale proportionally based on signal ratio
             # If signal says symbol1_qty=1.0, symbol2_qty=-2.5, then symbol2 should be 2.5x symbol1 size
             if signal.symbol1_qty != 0:
                 quantity_ratio = abs(signal.symbol2_qty / signal.symbol1_qty)
             else:
                 quantity_ratio = abs(signal.symbol2_qty)
-                
-            symbol2_size = symbol1_base_size * quantity_ratio  # Same base unit size, scaled by ratio
+
+            symbol2_size = (
+                symbol1_base_size * quantity_ratio
+            )  # Same base unit size, scaled by ratio
             symbol2_notional = symbol2_size * price2
 
             # Verify we're not exceeding reasonable limits
             total_notional = symbol1_notional + symbol2_notional
             margin_required = total_notional / self.leverage
-            
+
             # If too large, scale down proportionally
-            if total_notional > self.max_position_size_usdt * 3:  # Allow up to 3x for pairs
+            if (
+                total_notional > self.max_position_size_usdt * 3
+            ):  # Allow up to 3x for pairs
                 scale_factor = (self.max_position_size_usdt * 3) / total_notional
                 symbol1_size *= scale_factor
                 symbol2_size *= scale_factor
@@ -282,12 +298,20 @@ class TradeExecutor:
                 print(f"  ⚠️  Scaled down by {scale_factor:.3f} to stay within limits")
 
             print(f"  Position calculation:")
-            print(f"    Signal quantities: {symbol1} {signal.symbol1_qty:+.3f}, {symbol2} {signal.symbol2_qty:+.3f}")
+            print(
+                f"    Signal quantities: {symbol1} {signal.symbol1_qty:+.3f}, {symbol2} {signal.symbol2_qty:+.3f}"
+            )
             print(f"    Quantity ratio: {quantity_ratio:.3f}")
-            print(f"    {symbol1}: {symbol1_size:.6f} units = ${symbol1_notional:.2f} @ ${price1:.2f}")
-            print(f"    {symbol2}: {symbol2_size:.6f} units = ${symbol2_notional:.2f} @ ${price2:.2f}")
+            print(
+                f"    {symbol1}: {symbol1_size:.6f} units = ${symbol1_notional:.2f} @ ${price1:.2f}"
+            )
+            print(
+                f"    {symbol2}: {symbol2_size:.6f} units = ${symbol2_notional:.2f} @ ${price2:.2f}"
+            )
             print(f"    Total notional: ${total_notional:.2f} USDT")
-            print(f"    Margin required ({self.leverage}x leverage): ${margin_required:.2f} USDT")
+            print(
+                f"    Margin required ({self.leverage}x leverage): ${margin_required:.2f} USDT"
+            )
 
             return symbol1_size, symbol2_size, price1, price2
 

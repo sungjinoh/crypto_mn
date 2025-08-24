@@ -73,13 +73,26 @@ class PositionTracker:
         """Record a new open position with actual execution details"""
         pair_key = self._get_pair_key(symbol1, symbol2)
 
+        # DEBUG: Print execution result to understand what we're getting
+        if execution_result:
+            print(f"  DEBUG: execution_result = {execution_result}")
+
         # Extract actual executed details if available
         if execution_result:
-            symbol1_executed_size = execution_result.get("symbol1_order", {}).get(
-                "size", abs(signal.symbol1_qty)
+            # Try multiple possible field names for executed size
+            symbol1_order = execution_result.get("symbol1_order", {})
+            symbol2_order = execution_result.get("symbol2_order", {})
+
+            # CCXT might return 'amount', 'filled', or 'size' depending on exchange
+            symbol1_executed_size = (
+                symbol1_order.get("filled")
+                or symbol1_order.get("amount")
+                or symbol1_order.get("size", abs(signal.symbol1_qty))
             )
-            symbol2_executed_size = execution_result.get("symbol2_order", {}).get(
-                "size", abs(signal.symbol2_qty)
+            symbol2_executed_size = (
+                symbol2_order.get("filled")
+                or symbol2_order.get("amount")
+                or symbol2_order.get("size", abs(signal.symbol2_qty))
             )
             symbol1_executed_side = execution_result.get("symbol1_order", {}).get(
                 "side", ""
@@ -156,11 +169,19 @@ class PositionTracker:
 
             # Log the actual close execution details
             if execution_result:
-                symbol1_close_size = execution_result.get("symbol1_order", {}).get(
-                    "size", 0.0
+                symbol1_order = execution_result.get("symbol1_order", {})
+                symbol2_order = execution_result.get("symbol2_order", {})
+
+                # Try multiple field names for executed size
+                symbol1_close_size = (
+                    symbol1_order.get("filled")
+                    or symbol1_order.get("amount")
+                    or symbol1_order.get("size", 0.0)
                 )
-                symbol2_close_size = execution_result.get("symbol2_order", {}).get(
-                    "size", 0.0
+                symbol2_close_size = (
+                    symbol2_order.get("filled")
+                    or symbol2_order.get("amount")
+                    or symbol2_order.get("size", 0.0)
                 )
                 symbol1_close_side = execution_result.get("symbol1_order", {}).get(
                     "side", ""
@@ -355,14 +376,21 @@ class PositionTracker:
 
             # Add exit execution details if available
             if execution_result:
+                symbol1_order = execution_result.get("symbol1_order", {})
+                symbol2_order = execution_result.get("symbol2_order", {})
+
                 trade_record.update(
                     {
-                        "exit_symbol1_size": execution_result.get(
-                            "symbol1_order", {}
-                        ).get("size", 0.0),
-                        "exit_symbol2_size": execution_result.get(
-                            "symbol2_order", {}
-                        ).get("size", 0.0),
+                        "exit_symbol1_size": (
+                            symbol1_order.get("filled")
+                            or symbol1_order.get("amount")
+                            or symbol1_order.get("size", 0.0)
+                        ),
+                        "exit_symbol2_size": (
+                            symbol2_order.get("filled")
+                            or symbol2_order.get("amount")
+                            or symbol2_order.get("size", 0.0)
+                        ),
                         "exit_symbol1_side": execution_result.get(
                             "symbol1_order", {}
                         ).get("side", ""),
