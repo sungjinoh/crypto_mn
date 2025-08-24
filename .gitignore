@@ -144,3 +144,6 @@ binance_futures_data/
 state/positions.json
 
 *.pkl
+
+positions.json
+trades_history.json
