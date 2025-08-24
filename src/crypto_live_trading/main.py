@@ -16,7 +16,7 @@ from execution.trade_executor import TradeExecutor
 from state.position_tracker import PositionTracker
 from state.asset_position_tracker import AssetPositionTracker, PendingOrder
 from utils.live_data_manager import LiveDataManager
-from utils.slack_util import SlackUtil
+from utils.telegram_util import TelegramUtil
 
 # Load monthly cointegration pairs (update this path as needed)
 COINTEGRATION_PAIRS_PATH = os.path.join(
@@ -41,7 +41,7 @@ TRADING_CONFIG = {
 }
 
 
-def monitor_existing_positions(tracker, executor, slack):
+def monitor_existing_positions(tracker, executor, telegram):
     """
     Monitor existing positions for margin levels and health.
     This can be called frequently without running the full trading cycle.
@@ -64,7 +64,7 @@ def monitor_existing_positions(tracker, executor, slack):
             # Monitor margin levels for existing position
             try:
                 margin_status = executor.monitor_position_margin(
-                    symbol1, symbol2, slack
+                    symbol1, symbol2, telegram
                 )
 
                 if margin_status.get("overall_status") == "attention_needed":
@@ -82,7 +82,7 @@ def monitor_existing_positions(tracker, executor, slack):
             except Exception as e:
                 print(f"   ⚠️  Error monitoring margin: {e}")
                 try:
-                    slack.notify_error(
+                    telegram.notify_error(
                         f"Margin monitoring failed: {e}", symbol1, symbol2
                     )
                 except:
@@ -92,7 +92,7 @@ def monitor_existing_positions(tracker, executor, slack):
 
 
 def run_full_trading_cycle(
-    data_manager, strategy, executor, tracker, asset_tracker, slack, pairs
+    data_manager, strategy, executor, tracker, asset_tracker, telegram, pairs
 ):
     """
     Run the full trading cycle: signal generation, position netting, execution, and monitoring.
@@ -147,7 +147,7 @@ def run_full_trading_cycle(
             error_msg = f"Error processing {symbol1}-{symbol2}: {e}"
             print(f"   ❌ {error_msg}")
             try:
-                slack.notify_error(str(e), symbol1, symbol2)
+                telegram.notify_error(str(e), symbol1, symbol2)
             except:
                 pass
 
@@ -294,11 +294,11 @@ def run_full_trading_cycle(
                             "total_notional": f"{TRADING_CONFIG['max_position_size_usdt']*2:.2f}",
                             "margin_required": f"{TRADING_CONFIG['max_position_size_usdt']*2/TRADING_CONFIG['leverage']:.2f}",
                         }
-                        slack.notify_position_open(
+                        telegram.notify_position_open(
                             symbol1, symbol2, net_signal, position_info
                         )
                     except Exception as e:
-                        print(f"   Warning: Slack notification failed: {e}")
+                        print(f"   Warning: Telegram notification failed: {e}")
 
             elif signal.is_exit and position:
                 print(
@@ -320,24 +320,24 @@ def run_full_trading_cycle(
                     )
                     positions_closed += 1
 
-                    # Send Slack notification for position close
+                    # Send Telegram notification for position close
                     try:
                         position_info = {"duration": duration_str}
-                        slack.notify_position_close(
+                        telegram.notify_position_close(
                             symbol1, symbol2, net_signal, position_info
                         )
                     except Exception as e:
-                        print(f"   Warning: Slack notification failed: {e}")
+                        print(f"   Warning: Telegram notification failed: {e}")
 
         except Exception as e:
             print(f"   ❌ Error executing {pair_key}: {e}")
             try:
-                slack.notify_error(str(e), symbol1, symbol2)
+                telegram.notify_error(str(e), symbol1, symbol2)
             except:
                 pass
 
     # Step 4: Monitor existing positions (same as monitoring mode)
-    monitor_existing_positions(tracker, executor, slack)
+    monitor_existing_positions(tracker, executor, telegram)
 
     # Final summary
     updated_positions = tracker.get_all_open_positions()
@@ -446,7 +446,7 @@ def main():
         max_position_size_usdt=TRADING_CONFIG["max_position_size_usdt"],
     )
     tracker = PositionTracker()
-    slack = SlackUtil()
+    telegram = TelegramUtil()
 
     print(f"\n{'='*60}")
     print(f"Time: {datetime.now()}")
@@ -455,7 +455,7 @@ def main():
     if args.mode == "monitor":
         # MONITORING MODE: Only check existing positions
         print("🔍 MONITORING MODE: Checking existing positions only...")
-        monitor_existing_positions(tracker, executor, slack)
+        monitor_existing_positions(tracker, executor, telegram)
         print(f"\n⏰ Monitoring complete. Run again as needed.")
 
     else:
@@ -511,11 +511,11 @@ def main():
             "Entry Threshold": f"{FIXED_PARAMS['entry_threshold']}",
             "Exit Threshold": f"{FIXED_PARAMS['exit_threshold']}",
         }
-        slack.notify_system_start(system_config)
+        telegram.notify_system_start(system_config)
 
         # Run the full trading cycle
         run_full_trading_cycle(
-            data_manager, strategy, executor, tracker, asset_tracker, slack, pairs
+            data_manager, strategy, executor, tracker, asset_tracker, telegram, pairs
         )
 
         print(f"\n⏰ Waiting for next 4-hour cycle...")

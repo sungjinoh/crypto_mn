@@ -358,13 +358,13 @@ class TradeExecutor:
             print(f"  Error setting leverage for {symbol}: {e}")
             # Don't raise exception - continue with trading even if leverage setting fails
 
-    def monitor_position_margin(self, symbol1, symbol2, slack_util=None):
+    def monitor_position_margin(self, symbol1, symbol2, telegram_util=None):
         """
         Monitor margin levels for both symbols in a pairs trade and adjust if needed.
 
         Args:
             symbol1, symbol2: Trading symbols
-            slack_util: SlackUtil instance for notifications
+            telegram_util: TelegramUtil instance for notifications
 
         Returns:
             dict: Summary of margin status and actions taken
@@ -374,8 +374,8 @@ class TradeExecutor:
             symbol2_ccxt = self._format_symbol(symbol2)
 
             # Check margin for both symbols
-            symbol1_status = self._check_and_adjust_margin(symbol1_ccxt, slack_util)
-            symbol2_status = self._check_and_adjust_margin(symbol2_ccxt, slack_util)
+            symbol1_status = self._check_and_adjust_margin(symbol1_ccxt, telegram_util)
+            symbol2_status = self._check_and_adjust_margin(symbol2_ccxt, telegram_util)
 
             return {
                 "symbol1": symbol1_status,
@@ -392,13 +392,13 @@ class TradeExecutor:
             print(f"  Error monitoring margin for {symbol1}-{symbol2}: {e}")
             return {"error": str(e)}
 
-    def _check_and_adjust_margin(self, symbol, slack_util=None):
+    def _check_and_adjust_margin(self, symbol, telegram_util=None):
         """
         Check and adjust margin for a single symbol.
 
         Args:
             symbol: CCXT formatted symbol (e.g., 'BTC/USDT')
-            slack_util: SlackUtil instance for notifications
+            telegram_util: TelegramUtil instance for notifications
 
         Returns:
             dict: Margin status and actions taken
@@ -479,15 +479,14 @@ class TradeExecutor:
                     message = f"✅ Added ${add_amount:.2f} margin to {symbol}. New balance: ${new_margin_balance:.2f}"
                     print(f"    {message}")
 
-                    # Send Slack notification
-                    if slack_util:
-                        slack_util.send_msg_to_slack(
-                            f"💰 MARGIN ADDED\n"
-                            f"Symbol: {symbol}\n"
-                            f"Amount: ${add_amount:.2f}\n"
-                            f"Current: ${margin_balance:.2f} → New: ${new_margin_balance:.2f}\n"
-                            f"Liquidation Price: ${liquidation_price:.4f}",
-                            color="#ffaa00",
+                    # Send Telegram notification
+                    if telegram_util:
+                        telegram_util.send_message(
+                            f"💰 *MARGIN ADDED*\n"
+                            f"Symbol: `{symbol}`\n"
+                            f"Amount: `${add_amount:.2f}`\n"
+                            f"Current: `${margin_balance:.2f}` → New: `${new_margin_balance:.2f}`\n"
+                            f"Liquidation Price: `${liquidation_price:.4f}`"
                         )
 
                     return {
@@ -502,8 +501,8 @@ class TradeExecutor:
                     error_msg = f"Failed to add margin to {symbol}: {e}"
                     print(f"    ❌ {error_msg}")
 
-                    if slack_util:
-                        slack_util.notify_error(
+                    if telegram_util:
+                        telegram_util.notify_error(
                             f"Margin addition failed for {symbol}: {e}"
                         )
 
@@ -533,15 +532,14 @@ class TradeExecutor:
                         message = f"✅ Reduced ${reduce_amount:.2f} margin from {symbol}. New balance: ${new_balance:.2f}"
                         print(f"    {message}")
 
-                        # Send Slack notification
-                        if slack_util:
-                            slack_util.send_msg_to_slack(
-                                f"💸 MARGIN REDUCED\n"
-                                f"Symbol: {symbol}\n"
-                                f"Amount: ${reduce_amount:.2f}\n"
-                                f"Current: ${margin_balance:.2f} → New: ${new_balance:.2f}\n"
-                                f"Capital freed for other trades",
-                                color="#00aa00",
+                        # Send Telegram notification
+                        if telegram_util:
+                            telegram_util.send_message(
+                                f"💸 *MARGIN REDUCED*\n"
+                                f"Symbol: `{symbol}`\n"
+                                f"Amount: `${reduce_amount:.2f}`\n"
+                                f"Current: `${margin_balance:.2f}` → New: `${new_balance:.2f}`\n"
+                                f"Capital freed for other trades"
                             )
 
                         return {
