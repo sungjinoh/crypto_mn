@@ -74,7 +74,6 @@ class OptimalBacktestingWorkflow:
         # Test different configurations first
         print(f"\n🔧 Testing backtesting configurations...")
         config_ranges = {
-            "resample_timeframe": ["5T", "15T", "1H"],
             "transaction_cost": [0.001, 0.002],
             "position_size": [0.5, 0.8],
         }
@@ -286,7 +285,9 @@ class OptimalBacktestingWorkflow:
             try:
                 # Load data
                 symbol1, symbol2 = pair["symbol1"], pair["symbol2"]
-                df1, df2 = backtester.load_pair_data(symbol1, symbol2, 2024, [4, 5, 6])
+                df1, df2 = backtester.load_pair_data(
+                    symbol1, symbol2, [2024], [4, 5, 6]
+                )
 
                 # Optimize parameters for this specific pair
                 optimization_result = backtester.optimize_strategy_params(

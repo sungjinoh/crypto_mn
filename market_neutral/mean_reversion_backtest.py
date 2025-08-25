@@ -409,10 +409,11 @@ class MeanReversionBacktester:
                 print(f"⚠️ Failed to save trade details for {symbol1}-{symbol2}: {e}")
 
         # Calculate funding costs for trades if enabled
-        if self.backtester.include_funding_costs and backtest_result.trades:
-            self.calculate_funding_costs_for_trades(
-                backtest_result.trades, symbol1, symbol2
-            )
+        # Note: Funding costs calculation is currently disabled
+        # if hasattr(self.backtester, 'include_funding_costs') and self.backtester.include_funding_costs and backtest_result.trades:
+        #     self.calculate_funding_costs_for_trades(
+        #         backtest_result.trades, symbol1, symbol2
+        #     )
 
         return backtest_result
 
@@ -800,7 +801,6 @@ class MeanReversionBacktester:
         # Default configuration ranges
         if config_ranges is None:
             config_ranges = {
-                "resample_timeframe": [None, "5T", "15T", "1H"],
                 "transaction_cost": [0.0005, 0.001, 0.002],
                 "position_size": [0.3, 0.5, 0.8],
             }
