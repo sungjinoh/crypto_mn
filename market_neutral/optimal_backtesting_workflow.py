@@ -52,7 +52,6 @@ class OptimalBacktestingWorkflow:
         backtester = MeanReversionBacktester(
             base_path=self.base_path,
             results_dir=self.results_dir,
-            resample_timeframe="15T",  # Start with 15-minute for speed
             save_plots=False,  # No plots during screening
         )
 
@@ -98,25 +97,21 @@ class OptimalBacktestingWorkflow:
         # Find most common best configuration
         if config_results:
             # Simple voting for best config
-            timeframes = [c["resample_timeframe"] for c in config_results]
             costs = [c["transaction_cost"] for c in config_results]
             sizes = [c["position_size"] for c in config_results]
 
             best_global_config = {
-                "resample_timeframe": max(set(timeframes), key=timeframes.count),
                 "transaction_cost": np.median(costs),
                 "position_size": np.median(sizes),
             }
         else:
             # Fallback configuration
             best_global_config = {
-                "resample_timeframe": "15T",
                 "transaction_cost": 0.001,
                 "position_size": 0.5,
             }
 
         print(f"✅ Best global configuration:")
-        print(f"   • Timeframe: {best_global_config['resample_timeframe']}")
         print(f"   • Transaction Cost: {best_global_config['transaction_cost']:.4f}")
         print(f"   • Position Size: {best_global_config['position_size']:.2f}")
 
@@ -125,7 +120,6 @@ class OptimalBacktestingWorkflow:
         optimized_backtester = MeanReversionBacktester(
             base_path=self.base_path,
             results_dir=self.results_dir,
-            resample_timeframe=best_global_config["resample_timeframe"],
             transaction_cost=best_global_config["transaction_cost"],
             position_size=best_global_config["position_size"],
             save_plots=False,
