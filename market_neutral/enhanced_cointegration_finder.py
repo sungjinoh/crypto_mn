@@ -516,10 +516,25 @@ class CointegrationFinder:
             parquet_file = output_path / f"cointegrated_pairs_{timestamp}.parquet"
             if results["cointegrated_pairs"]:
                 df = pd.DataFrame(results["cointegrated_pairs"])
-                # Handle nested dictionaries
-                if "spread_properties" in df.columns:
-                    # Store as JSON string for parquet compatibility
-                    df["spread_properties"] = df["spread_properties"].apply(json.dumps)
+
+                # Handle nested dictionaries and non-serializable objects
+                columns_to_convert = ["spread_properties", "regression_stats"]
+                for col in columns_to_convert:
+                    if col in df.columns:
+                        # Store as JSON string for parquet compatibility
+                        df[col] = df[col].apply(
+                            lambda x: json.dumps(x) if x is not None else None
+                        )
+
+                # Remove any remaining non-serializable columns
+                non_serializable_cols = ["regression_results"]
+                for col in non_serializable_cols:
+                    if col in df.columns:
+                        df = df.drop(columns=[col])
+                        print(
+                            f"   Dropped non-serializable column '{col}' for parquet format"
+                        )
+
                 df.to_parquet(parquet_file, index=False)
                 print(f"Saved parquet results to {parquet_file}")
 
@@ -600,6 +615,21 @@ class CointegrationFinder:
                     return obj.item()
             except (ValueError, AttributeError, TypeError):
                 pass
+
+        # Handle statsmodels regression results (non-serializable)
+        if hasattr(obj, "__class__") and "RegressionResultsWrapper" in str(type(obj)):
+            # Extract key statistics and return as dict
+            try:
+                return {
+                    "r_squared": float(obj.rsquared),
+                    "aic": float(obj.aic),
+                    "bic": float(obj.bic),
+                    "params": [float(p) for p in obj.params],
+                    "pvalues": [float(p) for p in obj.pvalues],
+                    "object_type": "RegressionResultsWrapper",
+                }
+            except:
+                return str(obj)
 
         # Last resort: convert to string
         try:

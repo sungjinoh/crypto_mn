@@ -4,6 +4,7 @@ This script loads cointegration results, filters top pairs, and runs mean revers
 """
 
 import os
+import sys
 import json
 import pickle
 import pandas as pd
@@ -15,6 +16,9 @@ from tqdm import tqdm
 import warnings
 
 warnings.filterwarnings("ignore")
+
+# Add parent directory to path for imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import required modules
 from backtesting_framework.pairs_backtester import (

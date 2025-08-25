@@ -2,9 +2,15 @@
 Mean Reversion Statistical Arbitrage Strategy for Pairs Trading
 """
 
+import sys
+import os
 import pandas as pd
 import numpy as np
 from typing import List
+
+# Add parent directory to path for imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from backtesting_framework.pairs_backtester import PairsStrategy
 
 

@@ -4,6 +4,10 @@ Run Fixed Parameters on Multiple Pairs
 Test specific parameter settings across top pairs without optimization.
 """
 
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from mean_reversion_backtest import MeanReversionBacktester
 from mean_reversion_strategy import MeanReversionStrategy
 import pandas as pd
