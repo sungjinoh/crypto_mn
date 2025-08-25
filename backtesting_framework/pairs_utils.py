@@ -524,3 +524,82 @@ def generate_pair_report(
         report.append("💡 Consider momentum-based strategies instead")
 
     return "\n".join(report)
+
+
+def calculate_spread_and_zscore(
+    prices1: pd.Series, 
+    prices2: pd.Series, 
+    hedge_ratio: float, 
+    intercept: float = 0,
+    use_log_prices: bool = False,
+    lookback_period: int = 60
+) -> Tuple[pd.Series, pd.Series]:
+    """
+    Calculate spread and z-score for trading signals using consistent methodology
+    
+    Args:
+        prices1: First asset price series
+        prices2: Second asset price series
+        hedge_ratio: Hedge ratio from cointegration analysis
+        intercept: Intercept from cointegration analysis
+        use_log_prices: Whether to use log transformation (from cointegration analysis)
+        lookback_period: Rolling window for z-score calculation
+        
+    Returns:
+        Tuple of (spread, z_score) series
+    """
+    if use_log_prices:
+        # Log spread - consistent with cointegration analysis
+        spread = np.log(prices1) - hedge_ratio * np.log(prices2) - intercept
+    else:
+        # Regular spread - consistent with cointegration analysis
+        spread = prices1 - hedge_ratio * prices2 - intercept
+    
+    # Calculate z-score using rolling statistics
+    spread_mean = spread.rolling(window=lookback_period).mean()
+    spread_std = spread.rolling(window=lookback_period).std()
+    z_score = (spread - spread_mean) / spread_std
+    
+    return spread, z_score
+
+
+def create_trading_signals(
+    z_score: pd.Series,
+    entry_threshold: float = 2.0,
+    exit_threshold: float = 0.5,
+    stop_loss_threshold: float = 3.0
+) -> pd.DataFrame:
+    """
+    Create trading signals based on z-score
+    
+    Args:
+        z_score: Z-score series
+        entry_threshold: Z-score threshold for entry signals
+        exit_threshold: Z-score threshold for exit signals
+        stop_loss_threshold: Z-score threshold for stop loss
+        
+    Returns:
+        DataFrame with trading signals
+    """
+    signals = pd.DataFrame(index=z_score.index)
+    signals["z_score"] = z_score
+    signals["signal"] = 0
+    signals["position"] = 0
+    
+    # Generate entry signals
+    # Long spread when z-score is very negative (spread is cheap)
+    signals.loc[z_score <= -entry_threshold, "signal"] = 1
+    signals.loc[z_score <= -entry_threshold, "position"] = 1  # Long spread
+    
+    # Short spread when z-score is very positive (spread is expensive)  
+    signals.loc[z_score >= entry_threshold, "signal"] = 1
+    signals.loc[z_score >= entry_threshold, "position"] = -1  # Short spread
+    
+    # Exit signals when z-score returns to normal
+    signals.loc[abs(z_score) <= exit_threshold, "signal"] = -1  # Exit signal
+    
+    # Stop loss signals
+    signals.loc[z_score >= stop_loss_threshold, "stop_loss"] = 1
+    signals.loc[z_score <= -stop_loss_threshold, "stop_loss"] = 1
+    
+    return signals

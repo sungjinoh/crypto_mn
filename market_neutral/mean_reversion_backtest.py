@@ -261,10 +261,24 @@ class MeanReversionBacktester:
         # Add indicators using strategy's lookback period
         data = self.backtester.add_indicators(data, strategy.lookback_period)
 
-        # Check cointegration
+        # Check cointegration using the transformation flag from prepared data
+        use_log_flag = data.attrs.get("use_log_prices", None)
         cointegration_results = self.backtester.check_cointegration(
-            data[f"{symbol1}_close"], data[f"{symbol2}_close"]
+            data[f"{symbol1}_close"],
+            data[f"{symbol2}_close"],
+            use_log_prices=use_log_flag,
         )
+
+        # If cointegrated, calculate consistent spread and signals
+        if cointegration_results.get("is_cointegrated", False):
+            # Use the hedge ratio and other parameters from cointegration analysis
+            data = self.backtester.calculate_spread_and_signals(
+                data,
+                hedge_ratio=cointegration_results["hedge_ratio"],
+                intercept=cointegration_results.get("intercept", 0),
+                use_log_prices=cointegration_results.get("use_log_prices", False),
+                lookback_period=strategy.lookback_period,
+            )
 
         # Generate signals
         signals = strategy.generate_signals(data)

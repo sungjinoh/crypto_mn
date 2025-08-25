@@ -48,8 +48,13 @@ class MeanReversionStrategy(PairsStrategy):
         signals["position1"] = 0
         signals["position2"] = 0
 
-        # Get z-score
-        zscore = data["zscore"]
+        # Use consistent z-score if available, otherwise fallback to regular zscore
+        if "consistent_zscore" in data.columns:
+            zscore = data["consistent_zscore"]
+            # print(f"   Using consistent z-score from cointegration analysis")
+        else:
+            zscore = data["zscore"]
+            # print(f"   Using standard z-score calculation")
 
         # Entry signals
         long_entry = (

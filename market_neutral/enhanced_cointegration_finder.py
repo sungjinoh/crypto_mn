@@ -323,10 +323,24 @@ class CointegrationFinder:
 
             # Analyze spread properties if cointegrated
             if coint_result["is_cointegrated"]:
-                spread = (
-                    pair_data[f"{symbol1}_close"]
-                    - coint_result["hedge_ratio"] * pair_data[f"{symbol2}_close"]
-                )
+                # Use consistent spread calculation method
+                hedge_ratio = coint_result["hedge_ratio"]
+                intercept = coint_result.get("intercept", 0)
+                use_log_prices = coint_result.get("use_log_prices", False)
+
+                if use_log_prices:
+                    spread = (
+                        np.log(pair_data[f"{symbol1}_close"])
+                        - hedge_ratio * np.log(pair_data[f"{symbol2}_close"])
+                        - intercept
+                    )
+                else:
+                    spread = (
+                        pair_data[f"{symbol1}_close"]
+                        - hedge_ratio * pair_data[f"{symbol2}_close"]
+                        - intercept
+                    )
+
                 spread_props = analyze_spread_properties(spread)
                 coint_result["spread_properties"] = spread_props
 

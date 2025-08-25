@@ -99,7 +99,7 @@ class PairsBacktester:
         symbol2: str,
     ) -> pd.DataFrame:
         """
-        Prepare synchronized pair data with indicators
+        Prepare synchronized pair data with indicators and determine transformation method
 
         Args:
             symbol1_data: OHLCV data for first symbol
@@ -108,7 +108,7 @@ class PairsBacktester:
             symbol2: Symbol name for second asset
 
         Returns:
-            DataFrame with synchronized data and indicators
+            DataFrame with synchronized data, indicators, and transformation flags
         """
         # Merge data on timestamp
         data = pd.merge(
@@ -126,10 +126,91 @@ class PairsBacktester:
         data["datetime"] = pd.to_datetime(data["timestamp"], unit="ms")
         data.set_index("datetime", inplace=True)
 
-        # Calculate spread and ratio
-        data["spread"] = data[f"{symbol1}_close"] - data[f"{symbol2}_close"]
-        data["ratio"] = data[f"{symbol1}_close"] / data[f"{symbol2}_close"]
+        # Store original prices for later use
+        data["price1"] = data[f"{symbol1}_close"]
+        data["price2"] = data[f"{symbol2}_close"]
+
+        # Determine if we should use log prices based on price level differences
+        price1_mean = data["price1"].mean()
+        price2_mean = data["price2"].mean()
+        price_ratio = max(price1_mean, price2_mean) / min(price1_mean, price2_mean)
+        use_log_prices = price_ratio > 10  # Use log if prices differ by more than 10x
+
+        # Store transformation metadata in the dataframe for later use
+        data.attrs["use_log_prices"] = use_log_prices
+        data.attrs["price_ratio"] = price_ratio
+        data.attrs["price1_mean"] = price1_mean
+        data.attrs["price2_mean"] = price2_mean
+
+        # Calculate basic spread and ratio (for backward compatibility)
+        data["spread"] = data["price1"] - data["price2"]
+        data["ratio"] = data["price1"] / data["price2"]
         data["log_ratio"] = np.log(data["ratio"])
+
+        # Add transformation info as columns for easy access
+        data["use_log_prices"] = use_log_prices
+        data["price_level_ratio"] = price_ratio
+
+        print(f"📊 Price analysis for {symbol1}-{symbol2}:")
+        print(f"   {symbol1} mean price: ${price1_mean:,.2f}")
+        print(f"   {symbol2} mean price: ${price2_mean:,.2f}")
+        print(f"   Price ratio: {price_ratio:.2f}")
+        print(f"   Use log transformation: {use_log_prices}")
+
+        return data
+
+    def calculate_spread_and_signals(
+        self,
+        data: pd.DataFrame,
+        hedge_ratio: float,
+        intercept: float = 0,
+        use_log_prices: bool = None,
+        lookback_period: int = 60,
+    ) -> pd.DataFrame:
+        """
+        Calculate spread and z-score for trading signals using consistent methodology
+
+        Args:
+            data: DataFrame with price1 and price2 columns
+            hedge_ratio: Hedge ratio from cointegration analysis
+            intercept: Intercept from cointegration analysis
+            use_log_prices: Whether to use log transformation (if None, use from data.attrs)
+            lookback_period: Rolling window for z-score calculation
+        """
+        # Use flag from data preparation if not explicitly provided
+        if use_log_prices is None:
+            use_log_prices = data.attrs.get("use_log_prices", False)
+
+        if use_log_prices:
+            # Log spread - consistent with cointegration analysis
+            spread = (
+                np.log(data["price1"])
+                - hedge_ratio * np.log(data["price2"])
+                - intercept
+            )
+            print(
+                f"   Using log spread: ln(P1) - {hedge_ratio:.4f} × ln(P2) - {intercept:.4f}"
+            )
+        else:
+            # Regular spread - consistent with cointegration analysis
+            spread = data["price1"] - hedge_ratio * data["price2"] - intercept
+            print(
+                f"   Using normal spread: P1 - {hedge_ratio:.4f} × P2 - {intercept:.4f}"
+            )
+
+        # Calculate z-score using rolling statistics
+        spread_mean = spread.rolling(window=lookback_period).mean()
+        spread_std = spread.rolling(window=lookback_period).std()
+        z_score = (spread - spread_mean) / spread_std
+
+        # Add to dataframe
+        data["consistent_spread"] = spread
+        data["consistent_zscore"] = z_score
+
+        # Store the parameters used for reference
+        data.attrs["hedge_ratio"] = hedge_ratio
+        data.attrs["intercept"] = intercept
+        data.attrs["lookback_period"] = lookback_period
 
         return data
 
@@ -170,9 +251,16 @@ class PairsBacktester:
         symbol1_prices: pd.Series,
         symbol2_prices: pd.Series,
         significance_level: float = 0.05,
+        use_log_prices: bool = None,
     ) -> Dict[str, Any]:
         """
         Test for cointegration between two price series
+
+        Args:
+            symbol1_prices: First symbol price series
+            symbol2_prices: Second symbol price series
+            significance_level: P-value threshold for cointegration
+            use_log_prices: Whether to use log transformation (if None, auto-determine)
 
         Returns:
             Dictionary with cointegration test results
@@ -197,13 +285,18 @@ class PairsBacktester:
                 aligned_data["symbol1"], aligned_data["symbol2"]
             )
 
-            # Determine if we should use log prices based on price level differences
-            price1_mean = aligned_data["symbol1"].mean()
-            price2_mean = aligned_data["symbol2"].mean()
-            price_ratio = max(price1_mean, price2_mean) / min(price1_mean, price2_mean)
-            use_log_prices = (
-                price_ratio > 10
-            )  # Use log if prices differ by more than 10x
+            # Determine if we should use log prices (if not provided)
+            if use_log_prices is None:
+                price1_mean = aligned_data["symbol1"].mean()
+                price2_mean = aligned_data["symbol2"].mean()
+                price_ratio = max(price1_mean, price2_mean) / min(
+                    price1_mean, price2_mean
+                )
+                use_log_prices = price_ratio > 10
+            else:
+                price_ratio = max(
+                    aligned_data["symbol1"].mean(), aligned_data["symbol2"].mean()
+                ) / min(aligned_data["symbol1"].mean(), aligned_data["symbol2"].mean())
 
             # Transform prices if needed
             if use_log_prices:
@@ -407,10 +500,24 @@ class PairsBacktester:
         # Add indicators
         data = self.add_indicators(data, strategy.lookback_period)
 
-        # Check cointegration
+        # Check cointegration using the transformation flag from prepared data
+        use_log_flag = data.attrs.get("use_log_prices", None)
         cointegration_results = self.check_cointegration(
-            data[f"{symbol1}_close"], data[f"{symbol2}_close"]
+            data[f"{symbol1}_close"],
+            data[f"{symbol2}_close"],
+            use_log_prices=use_log_flag,
         )
+
+        # If cointegrated, calculate consistent spread and signals
+        if cointegration_results.get("is_cointegrated", False):
+            # Use the hedge ratio and other parameters from cointegration analysis
+            data = self.calculate_spread_and_signals(
+                data,
+                hedge_ratio=cointegration_results["hedge_ratio"],
+                intercept=cointegration_results.get("intercept", 0),
+                use_log_prices=cointegration_results.get("use_log_prices", False),
+                lookback_period=getattr(strategy, "lookback_period", 60),
+            )
 
         # Generate signals
         signals = strategy.generate_signals(data)

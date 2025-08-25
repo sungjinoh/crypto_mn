@@ -11,6 +11,8 @@ from .pairs_utils import (
     calculate_dynamic_thresholds,
     calculate_position_sizing_kelly,
     generate_pair_report,
+    calculate_spread_and_zscore,
+    create_trading_signals,
 )
 
 __version__ = "1.0.0"
@@ -23,4 +25,6 @@ __all__ = [
     "calculate_dynamic_thresholds",
     "calculate_position_sizing_kelly",
     "generate_pair_report",
+    "calculate_spread_and_zscore",
+    "create_trading_signals",
 ]
