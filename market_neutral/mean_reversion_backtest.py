@@ -66,7 +66,9 @@ class MeanReversionBacktester:
 
         # Resampling functionality note
         if resample_timeframe is not None:
-            print(f"⚠️ Note: Timeframe resampling to {resample_timeframe} is stored but not currently implemented in PairsBacktester")
+            print(
+                f"⚠️ Note: Timeframe resampling to {resample_timeframe} is stored but not currently implemented in PairsBacktester"
+            )
             print(f"   Data will be processed at its original frequency")
 
         self.finder = CointegrationFinder(base_path=base_path)
