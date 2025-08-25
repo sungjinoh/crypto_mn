@@ -86,9 +86,9 @@ def run_fixed_parameters_backtest(
     top_pairs = backtester.filter_top_pairs(
         coint_results,
         n_pairs=n_pairs,
-        max_p_value=0.08,
-        min_correlation=0.6,
-        max_half_life=90,
+        # max_p_value=0.08,
+        # min_correlation=0.6,
+        # max_half_life=90,
     )
 
     if not top_pairs:
@@ -318,7 +318,7 @@ def main():
     # Your specific parameters
     fixed_params = {
         "lookback_period": 60,
-        "entry_threshold": 1.0,
+        "entry_threshold": 2.5,
         "exit_threshold": 0.5,
         "stop_loss_threshold": 3.5,
     }
@@ -329,7 +329,7 @@ def main():
     # Run backtest
     results = run_fixed_parameters_backtest(
         fixed_params=fixed_params,
-        n_pairs=20,  # Test top 20 pairs
+        n_pairs=100,  # Test top 20 pairs
         test_years=[2024],
         test_months=[4, 5, 6, 7, 8, 9, 10, 11, 12],  # Out-of-sample testing
         save_results=True,
