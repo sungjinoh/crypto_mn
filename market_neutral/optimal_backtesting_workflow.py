@@ -6,6 +6,7 @@ This script implements the recommended approach for parameter optimization and b
 
 import sys
 import os
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from mean_reversion_backtest import MeanReversionBacktester
