@@ -204,6 +204,87 @@ def recommend_thresholds(threshold_options, target_pairs=10):
                 f"   min_sharpe={aggressive['min_sharpe']:.3f}, min_return={aggressive['min_return']:.3f}"
             )
 
+    # Add cointegration-specific filtering recommendations
+    print(f"\n🔬 COINTEGRATION FILTERING RECOMMENDATIONS")
+    print("=" * 60)
+    print(
+        f"For filtering cointegrated pairs before backtesting, consider these criteria:"
+    )
+    print(f"")
+    print(f"📊 STATISTICAL SIGNIFICANCE:")
+    print(f"   • max_p_value = 0.01      # Very strong cointegration (1% significance)")
+    print(f"   • max_p_value = 0.05      # Standard significance (5%)")
+    print(f"")
+    print(f"🔗 CORRELATION STRENGTH:")
+    print(f"   • min_correlation = 0.8   # High correlation (recommended)")
+    print(f"   • min_correlation = 0.7   # Moderate correlation")
+    print(f"   • min_correlation = 0.6   # Lower threshold")
+    print(f"")
+    print(f"⏱️ MEAN REVERSION SPEED:")
+    print(f"   • max_half_life = 20      # Fast mean reversion (aggressive)")
+    print(f"   • max_half_life = 50      # Moderate mean reversion")
+    print(f"   • max_half_life = 100     # Slower mean reversion (conservative)")
+    print(f"")
+    print(f"📈 RESIDUALS STATIONARITY:")
+    print(f"   • require_stationary_residuals = True   # ADF test p-value < 0.05")
+    print(f"")
+    print(f"💰 LOG PRICE TRANSFORMATION:")
+    print(
+        f"   • allow_log_prices = True/False        # Include/exclude log-transformed pairs"
+    )
+    print(f"   • max_price_ratio = 10                 # Maximum price level difference")
+    print(f"")
+    print(f"📋 EXAMPLE FILTERING FUNCTION:")
+    print(f"```python")
+    print(f"def filter_top_pairs(cointegration_results, backtesting_results):")
+    print(f'    """Filter pairs using both cointegration and performance criteria"""')
+    print(f"    ")
+    print(f"    # Step 1: Filter by cointegration quality")
+    print(f"    coint_filtered = []")
+    print(f"    for pair in cointegration_results:")
+    print(
+        f"        if (pair['p_value'] <= 0.01 and                    # Strong cointegration"
+    )
+    print(
+        f"            pair['correlation'] >= 0.8 and                 # High correlation"
+    )
+    print(
+        f"            pair['spread_properties']['half_life'] <= 50 and  # Fast mean reversion"
+    )
+    print(
+        f"            pair['residuals_stationary'] == True):         # Stationary residuals"
+    )
+    print(f"            coint_filtered.append(pair)")
+    print(f"    ")
+    print(f"    # Step 2: Filter by backtest performance")
+    print(f"    final_pairs = []")
+    print(f"    for pair in coint_filtered:")
+    print(f"        pair_symbol = f\"{{pair['symbol1']}}-{{pair['symbol2']}}\"")
+    print(f"        backtest_result = backtesting_results.get(pair_symbol)")
+    print(f"        if (backtest_result and")
+    print(
+        f"            backtest_result['sharpe_ratio'] >= {recommended['min_sharpe']:.3f} and"
+    )
+    print(
+        f"            backtest_result['total_return'] >= {recommended['min_return']:.3f}):"
+    )
+    print(f"            final_pairs.append(pair)")
+    print(f"    ")
+    print(f"    return final_pairs")
+    print(f"```")
+    print(f"")
+    print(f"🎯 RECOMMENDED COINTEGRATION FILTERS (CONSERVATIVE):")
+    print(f"   • max_p_value = 0.01")
+    print(f"   • min_correlation = 0.8")
+    print(f"   • max_half_life = 30")
+    print(f"   • require_stationary_residuals = True")
+    print(f"")
+    print(f"🚀 AGGRESSIVE COINTEGRATION FILTERS (MORE PAIRS):")
+    print(f"   • max_p_value = 0.05")
+    print(f"   • min_correlation = 0.7")
+    print(f"   • max_half_life = 100")
+    print(f"   • require_stationary_residuals = False")
+
     return recommended if best_option else None
 
 
@@ -256,6 +337,139 @@ def create_threshold_plots(df, save_dir="threshold_analysis_plots"):
     plt.close()
 
 
+def analyze_cointegration_filters(cointegration_file, backtesting_file):
+    """
+    Analyze how different cointegration filters affect the final pair selection
+
+    Args:
+        cointegration_file: Path to cointegration results (JSON or Parquet)
+        backtesting_file: Path to backtesting results (CSV)
+    """
+    print(f"🔬 COINTEGRATION FILTER ANALYSIS")
+    print("=" * 60)
+
+    try:
+        # Load cointegration results
+        if cointegration_file.endswith(".json"):
+            import json
+
+            with open(cointegration_file, "r") as f:
+                coint_data = json.load(f)
+            if isinstance(coint_data, dict) and "cointegrated_pairs" in coint_data:
+                coint_pairs = coint_data["cointegrated_pairs"]
+            else:
+                coint_pairs = coint_data
+        elif cointegration_file.endswith(".parquet"):
+            coint_df = pd.read_parquet(cointegration_file)
+            coint_pairs = coint_df.to_dict("records")
+        else:
+            print(f"❌ Unsupported cointegration file format: {cointegration_file}")
+            return
+
+        # Load backtesting results
+        backtest_df = pd.read_csv(backtesting_file)
+        if "success" in backtest_df.columns:
+            successful_backtests = backtest_df[backtest_df["success"] == True]
+        else:
+            successful_backtests = backtest_df
+
+        print(f"📊 Loaded {len(coint_pairs)} cointegrated pairs")
+        print(f"📊 Loaded {len(successful_backtests)} successful backtests")
+
+        # Test different filter combinations
+        filter_configs = [
+            {
+                "name": "Very Conservative",
+                "max_p_value": 0.001,
+                "min_correlation": 0.9,
+                "max_half_life": 20,
+            },
+            {
+                "name": "Conservative",
+                "max_p_value": 0.01,
+                "min_correlation": 0.8,
+                "max_half_life": 30,
+            },
+            {
+                "name": "Moderate",
+                "max_p_value": 0.05,
+                "min_correlation": 0.7,
+                "max_half_life": 50,
+            },
+            {
+                "name": "Aggressive",
+                "max_p_value": 0.1,
+                "min_correlation": 0.6,
+                "max_half_life": 100,
+            },
+        ]
+
+        print(f"\n📋 FILTER ANALYSIS RESULTS:")
+        print(
+            f"{'Filter':<15} {'Coint':<6} {'Backtest':<9} {'Overlap':<7} {'Success %':<10}"
+        )
+        print("-" * 60)
+
+        for config in filter_configs:
+            # Apply cointegration filters
+            filtered_coint = []
+            for pair in coint_pairs:
+                if (
+                    pair.get("p_value", 1.0) <= config["max_p_value"]
+                    and pair.get("correlation", 0.0) >= config["min_correlation"]
+                ):
+
+                    # Check half-life if available
+                    half_life = None
+                    if "spread_properties" in pair and pair["spread_properties"]:
+                        if isinstance(pair["spread_properties"], str):
+                            try:
+                                import json
+
+                                props = json.loads(pair["spread_properties"])
+                                half_life = props.get("half_life")
+                            except:
+                                pass
+                        else:
+                            half_life = pair["spread_properties"].get("half_life")
+
+                    if half_life is None or half_life <= config["max_half_life"]:
+                        filtered_coint.append(pair)
+
+            # Find overlap with successful backtests
+            overlap_count = 0
+            coint_symbols = set()
+            for pair in filtered_coint:
+                pair_symbol = f"{pair['symbol1']}-{pair['symbol2']}"
+                coint_symbols.add(pair_symbol)
+
+            backtest_symbols = set(
+                successful_backtests["pair"].unique()
+                if "pair" in successful_backtests.columns
+                else successful_backtests.index
+            )
+
+            overlap = coint_symbols.intersection(backtest_symbols)
+            overlap_count = len(overlap)
+
+            success_rate = (
+                (overlap_count / len(filtered_coint) * 100) if filtered_coint else 0
+            )
+
+            print(
+                f"{config['name']:<15} {len(filtered_coint):<6} {len(successful_backtests):<9} "
+                f"{overlap_count:<7} {success_rate:<10.1f}%"
+            )
+
+        print(f"\n💡 INSIGHTS:")
+        print(f"   • Use conservative filters to focus on highest-quality pairs")
+        print(f"   • Monitor success rate vs. number of pairs trade-off")
+        print(f"   • Consider moderate filters for balanced approach")
+
+    except Exception as e:
+        print(f"❌ Error in cointegration filter analysis: {e}")
+
+
 def analyze_existing_results(csv_file):
     """Analyze existing results from run_fixed_parameters.py"""
 
@@ -288,6 +502,20 @@ def analyze_existing_results(csv_file):
         create_threshold_plots(successful)
 
         print(f"\n🎉 ANALYSIS OF EXISTING RESULTS COMPLETED!")
+
+        # Check for cointegration results to do combined analysis
+        import glob
+
+        coint_files = glob.glob("cointegration_results/cointegration_results_*.json")
+        coint_files.extend(
+            glob.glob("cointegration_results/cointegration_results_*.parquet")
+        )
+
+        if coint_files:
+            latest_coint = max(coint_files, key=os.path.getctime)
+            print(f"\n🔬 Found cointegration results: {latest_coint}")
+            print("Running combined cointegration + backtest analysis...")
+            analyze_cointegration_filters(latest_coint, csv_file)
 
     except FileNotFoundError:
         print(f"❌ File not found: {csv_file}")

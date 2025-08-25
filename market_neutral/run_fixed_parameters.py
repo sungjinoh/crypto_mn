@@ -156,6 +156,7 @@ def run_fixed_parameters_backtest(
                 "cointegration_p_value": pair["p_value"],
                 "hedge_ratio": pair["hedge_ratio"],
                 "correlation": pair["correlation"],
+                "half_life": pair["half_life"],
                 "lookback_period": fixed_params["lookback_period"],
                 "entry_threshold": fixed_params["entry_threshold"],
                 "exit_threshold": fixed_params["exit_threshold"],
