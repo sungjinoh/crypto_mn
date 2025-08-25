@@ -39,8 +39,11 @@ def run_threshold_discovery_backtest():
     results = run_fixed_parameters_backtest(
         fixed_params=baseline_params,
         n_pairs=100,  # Test many pairs for good statistics
-        test_years=[2024],
-        test_months=[4, 5, 6, 7, 8, 9, 10, 11, 12],  # Long test period
+        test_years=[2023, 2024],
+        test_months=[
+            [6, 7, 8, 9, 10, 11, 12],
+            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+        ],  # Out-of-sample testing
         save_results=True,
         save_plots=False,  # Disable plots for speed
     )
