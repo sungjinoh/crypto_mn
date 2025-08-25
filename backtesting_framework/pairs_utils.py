@@ -67,15 +67,52 @@ def find_cointegrated_pairs(
                 )
 
                 if p_value < significance_level:
-                    # Calculate hedge ratio
-                    model = OLS(aligned_data["price1"], aligned_data["price2"]).fit()
-                    hedge_ratio = model.params[0]
-
-                    # Test stationarity of residuals
-                    residuals = (
-                        aligned_data["price1"] - hedge_ratio * aligned_data["price2"]
+                    # Determine if we should use log prices based on price level differences
+                    price1_mean = aligned_data["price1"].mean()
+                    price2_mean = aligned_data["price2"].mean()
+                    price_ratio = max(price1_mean, price2_mean) / min(
+                        price1_mean, price2_mean
                     )
-                    adf_stat, adf_p_value, _, _, adf_critical, _ = adfuller(residuals)
+                    use_log_prices = (
+                        price_ratio > 10
+                    )  # Use log if prices differ by more than 10x
+
+                    # Transform prices if needed
+                    if use_log_prices:
+                        y = np.log(aligned_data["price1"])
+                        x = np.log(aligned_data["price2"])
+                    else:
+                        y = aligned_data["price1"]
+                        x = aligned_data["price2"]
+
+                    # Calculate hedge ratio using OLS WITH CONSTANT
+                    import statsmodels.api as sm
+
+                    X = sm.add_constant(x)  # Add constant term
+                    model = OLS(y, X).fit()
+
+                    # Extract parameters
+                    intercept = model.params[0]  # Constant term (alpha)
+                    hedge_ratio = model.params[
+                        1
+                    ]  # Slope (beta) - this is the hedge ratio
+
+                    # Calculate spread for analysis
+                    spread = y - hedge_ratio * x - intercept
+
+                    # If using log prices, calculate position ratio for actual trading
+                    if use_log_prices:
+                        # Convert log hedge ratio to position ratio
+                        avg_price_ratio = (
+                            aligned_data["price1"].mean()
+                            / aligned_data["price2"].mean()
+                        )
+                        hedge_ratio = hedge_ratio * avg_price_ratio
+                    else:
+                        hedge_ratio = hedge_ratio
+
+                    # Test stationarity of residuals using the corrected spread
+                    adf_stat, adf_p_value, _, _, adf_critical, _ = adfuller(spread)
 
                     cointegration_results = {
                         "is_cointegrated": True,
@@ -83,11 +120,19 @@ def find_cointegrated_pairs(
                         "test_statistic": test_stat,
                         "critical_values": critical_values,
                         "hedge_ratio": hedge_ratio,
+                        "intercept": intercept,
+                        "use_log_prices": use_log_prices,
+                        "price_ratio": price_ratio,
                         "correlation": correlation,
                         "adf_statistic": adf_stat,
                         "adf_p_value": adf_p_value,
                         "adf_critical_values": adf_critical,
                         "residuals_stationary": adf_p_value < 0.05,
+                        "model_summary": {
+                            "r_squared": model.rsquared,
+                            "aic": model.aic,
+                            "bic": model.bic,
+                        },
                     }
 
                     cointegrated_pairs.append((symbol1, symbol2, cointegration_results))

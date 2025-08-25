@@ -59,12 +59,37 @@ class TelegramUtil:
                 print(
                     f"Telegram notification failed: {response.status_code} - {response.text}"
                 )
+                # Provide helpful hints for common errors
+                if response.status_code == 403:
+                    print("💡 Hint: This usually means:")
+                    print(
+                        "   - You're using another bot's chat ID instead of your personal chat ID"
+                    )
+                    print("   - You haven't started a conversation with your bot yet")
+                    print("   - Your bot was blocked by the user")
+                    print(
+                        "   See TELEGRAM_SETUP.md for help getting your correct chat ID"
+                    )
             else:
                 result = response.json()
                 if not result.get("ok"):
-                    print(
-                        f"Telegram API error: {result.get('description', 'Unknown error')}"
-                    )
+                    error_desc = result.get("description", "Unknown error")
+                    print(f"Telegram API error: {error_desc}")
+
+                    # Provide specific help for common errors
+                    if "bots can't send messages to bots" in error_desc:
+                        print(
+                            "💡 Solution: Use your personal chat ID, not another bot's ID"
+                        )
+                        print(
+                            "   Get your chat ID from @userinfobot or see TELEGRAM_SETUP.md"
+                        )
+                    elif "chat not found" in error_desc:
+                        print("💡 Solution: Check your TELEGRAM_CHAT_ID is correct")
+                    elif "bot was blocked" in error_desc:
+                        print(
+                            "💡 Solution: Unblock your bot and start a conversation with it"
+                        )
 
         except Exception as e:
             print(f"Error sending Telegram notification: {e}")

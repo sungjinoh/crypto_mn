@@ -197,9 +197,41 @@ class PairsBacktester:
                 aligned_data["symbol1"], aligned_data["symbol2"]
             )
 
-            # Calculate hedge ratio using OLS
-            model = OLS(aligned_data["symbol1"], aligned_data["symbol2"]).fit()
-            hedge_ratio = model.params[0]
+            # Determine if we should use log prices based on price level differences
+            price1_mean = aligned_data["symbol1"].mean()
+            price2_mean = aligned_data["symbol2"].mean()
+            price_ratio = max(price1_mean, price2_mean) / min(price1_mean, price2_mean)
+            use_log_prices = (
+                price_ratio > 10
+            )  # Use log if prices differ by more than 10x
+
+            # Transform prices if needed
+            if use_log_prices:
+                y = np.log(aligned_data["symbol1"])
+                x = np.log(aligned_data["symbol2"])
+            else:
+                y = aligned_data["symbol1"]
+                x = aligned_data["symbol2"]
+
+            # Calculate hedge ratio using OLS WITH CONSTANT
+            import statsmodels.api as sm
+
+            X = sm.add_constant(x)  # Add constant term
+            model = OLS(y, X).fit()
+
+            # Extract parameters
+            intercept = model.params[0]  # Constant term (alpha)
+            hedge_ratio = model.params[1]  # Slope (beta) - this is the hedge ratio
+
+            # If using log prices, calculate position ratio for actual trading
+            if use_log_prices:
+                # Convert log hedge ratio to position ratio
+                avg_price_ratio = (
+                    aligned_data["symbol1"].mean() / aligned_data["symbol2"].mean()
+                )
+                position_ratio = hedge_ratio * avg_price_ratio
+            else:
+                position_ratio = hedge_ratio
 
             is_cointegrated = p_value < significance_level
 
@@ -209,6 +241,10 @@ class PairsBacktester:
                 "critical_values": critical_values,
                 "test_statistic": test_stat,
                 "hedge_ratio": hedge_ratio,
+                "position_ratio": position_ratio,
+                "intercept": intercept,
+                "use_log_prices": use_log_prices,
+                "price_ratio": price_ratio,
                 "regression_results": model,
             }
 

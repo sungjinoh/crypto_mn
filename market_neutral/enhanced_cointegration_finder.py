@@ -20,7 +20,22 @@ from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import multiprocessing as mp
 
-from backtesting_framework.pairs_backtester import PairsBacktester
+# Add parent directory to Python path to import backtesting_framework
+import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+try:
+    from backtesting_framework.pairs_backtester import PairsBacktester
+except ImportError:
+    # Fallback: try direct import from relative path
+    sys.path.insert(
+        0,
+        os.path.join(
+            os.path.dirname(os.path.dirname(__file__)), "backtesting_framework"
+        ),
+    )
+    from pairs_backtester import PairsBacktester
 
 
 class CointegrationFinder:

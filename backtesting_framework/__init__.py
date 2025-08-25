@@ -1,18 +1,8 @@
 """
-Pairs Trading Backtesting Framework
-
-A comprehensive framework for backtesting pairs trading strategies
-with focus on mean reversion statistical arbitrage.
+Backtesting Framework for Pairs Trading
 """
 
-from .pairs_backtester import (
-    PairsBacktester,
-    PairsStrategy,
-    Trade,
-    BacktestResults,
-    plot_backtest_results,
-)
-
+from .pairs_backtester import PairsBacktester
 from .pairs_utils import (
     find_cointegrated_pairs,
     calculate_half_life,
@@ -24,16 +14,8 @@ from .pairs_utils import (
 )
 
 __version__ = "1.0.0"
-__author__ = "Kiro AI"
-
 __all__ = [
-    # Core backtesting classes
     "PairsBacktester",
-    "PairsStrategy",
-    "Trade",
-    "BacktestResults",
-    "plot_backtest_results",
-    # Utility functions
     "find_cointegrated_pairs",
     "calculate_half_life",
     "calculate_optimal_lookback",

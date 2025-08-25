@@ -44,7 +44,12 @@ def test_telegram_setup():
 
     # Test 1: Basic message
     print("1. Testing basic message...")
-    telegram.send_message("🧪 **Test Message**\nTelegram bot is working correctly!")
+    try:
+        telegram.send_message("🧪 **Test Message**\nTelegram bot is working correctly!")
+        print("   ✅ Basic message sent successfully")
+    except Exception as e:
+        print(f"   ❌ Failed to send basic message: {e}")
+        return False
 
     # Test 2: System start notification
     print("2. Testing system start notification...")
@@ -74,9 +79,13 @@ def test_telegram_setup():
     print("4. Testing error notification...")
     telegram.notify_error("This is a test error message", "BTCUSDT", "ETHUSDT")
 
-    print("\n✅ Test completed!")
+    print("\n✅ All tests completed successfully!")
     print("Check your Telegram chat to see if you received all 4 test messages.")
-    print("If you didn't receive messages, check your bot token and chat ID.")
+    print("\nIf you didn't receive messages, common issues:")
+    print("1. Make sure you're using YOUR personal chat ID, not your bot's ID")
+    print("2. Start a conversation with your bot first (send it any message)")
+    print("3. Check your bot token is correct and complete")
+    print("4. See TELEGRAM_SETUP.md for detailed troubleshooting")
 
     return True
 
