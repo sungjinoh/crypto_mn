@@ -6,6 +6,7 @@ Test specific parameter settings across top pairs without optimization.
 
 import sys
 import os
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from mean_reversion_backtest import MeanReversionBacktester
@@ -21,7 +22,7 @@ warnings.filterwarnings("ignore")
 def run_fixed_parameters_backtest(
     fixed_params: dict,
     n_pairs: int = 20,
-    test_years: list = [4, 5, 6],
+    test_years: list = [2024],
     test_months: list = [4, 5, 6],
     save_results: bool = True,
     save_plots: bool = True,
@@ -32,8 +33,8 @@ def run_fixed_parameters_backtest(
     Args:
         fixed_params: Dictionary with strategy parameters
         n_pairs: Number of top pairs to test
-        test_year: Year for backtesting
-        test_months: Months for backtesting
+        test_years: List of years for backtesting (e.g., [2024])
+        test_months: List of months for backtesting (e.g., [4, 5, 6])
         save_results: Whether to save results to CSV
         save_plots: Whether to save plot images
     """
@@ -330,7 +331,7 @@ def main():
         fixed_params=fixed_params,
         n_pairs=20,  # Test top 20 pairs
         test_years=[2024],
-        test_months=[[4, 5, 6, 7, 8, 9, 10, 11, 12]],  # Out-of-sample testing
+        test_months=[4, 5, 6, 7, 8, 9, 10, 11, 12],  # Out-of-sample testing
         save_results=True,
         save_plots=True,
     )

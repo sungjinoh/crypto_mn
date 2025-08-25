@@ -83,7 +83,7 @@ class OptimalBacktestingWorkflow:
         for pair in sample_pairs[:2]:  # Test config on first 2 pairs
             try:
                 symbol1, symbol2 = pair["symbol1"], pair["symbol2"]
-                df1, df2 = backtester.load_pair_data(symbol1, symbol2, 2024, [4, 5])
+                df1, df2 = backtester.load_pair_data(symbol1, symbol2, [2024], [4, 5])
 
                 config_result = backtester.optimize_backtesting_config(
                     df1, df2, symbol1, symbol2, config_ranges=config_ranges
@@ -145,7 +145,7 @@ class OptimalBacktestingWorkflow:
             try:
                 symbol1, symbol2 = pair["symbol1"], pair["symbol2"]
                 df1, df2 = optimized_backtester.load_pair_data(
-                    symbol1, symbol2, 2024, [4, 5]
+                    symbol1, symbol2, [2024], [4, 5]
                 )
 
                 param_result = optimized_backtester.optimize_strategy_params(

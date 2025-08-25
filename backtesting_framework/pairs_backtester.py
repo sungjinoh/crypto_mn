@@ -334,12 +334,22 @@ class PairsBacktester:
                 "r_squared_adj": float(model.rsquared_adj),
                 "aic": float(model.aic),
                 "bic": float(model.bic),
-                "f_statistic": float(model.fvalue) if hasattr(model, 'fvalue') else None,
-                "f_pvalue": float(model.f_pvalue) if hasattr(model, 'f_pvalue') else None,
-                "durbin_watson": float(model.durbin_watson()) if hasattr(model, 'durbin_watson') else None,
+                "f_statistic": (
+                    float(model.fvalue) if hasattr(model, "fvalue") else None
+                ),
+                "f_pvalue": (
+                    float(model.f_pvalue) if hasattr(model, "f_pvalue") else None
+                ),
+                "durbin_watson": (
+                    float(model.durbin_watson())
+                    if hasattr(model, "durbin_watson")
+                    else None
+                ),
                 "params": [float(p) for p in model.params],
                 "pvalues": [float(p) for p in model.pvalues],
-                "std_errors": [float(se) for se in model.bse] if hasattr(model, 'bse') else None,
+                "std_errors": (
+                    [float(se) for se in model.bse] if hasattr(model, "bse") else None
+                ),
             }
 
             return {
