@@ -64,13 +64,16 @@ class MeanReversionBacktester:
         self.plots_dir = plots_dir
         self.resample_timeframe = resample_timeframe
 
+        # Resampling functionality note
+        if resample_timeframe is not None:
+            print(f"⚠️ Note: Timeframe resampling to {resample_timeframe} is stored but not currently implemented in PairsBacktester")
+            print(f"   Data will be processed at its original frequency")
+
         self.finder = CointegrationFinder(base_path=base_path)
         self.backtester = PairsBacktester(
             initial_capital=initial_capital,
             transaction_cost=transaction_cost,
             position_size=position_size,
-            resample_timeframe=resample_timeframe,
-            include_funding_costs=True,  # Disable funding costs for now (methods removed by autofix)
         )
 
         # Trade logging settings

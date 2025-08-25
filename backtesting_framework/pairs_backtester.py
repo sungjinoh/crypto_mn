@@ -328,6 +328,20 @@ class PairsBacktester:
 
             is_cointegrated = p_value < significance_level
 
+            # Extract only serializable regression statistics
+            regression_stats = {
+                "r_squared": float(model.rsquared),
+                "r_squared_adj": float(model.rsquared_adj),
+                "aic": float(model.aic),
+                "bic": float(model.bic),
+                "f_statistic": float(model.fvalue) if hasattr(model, 'fvalue') else None,
+                "f_pvalue": float(model.f_pvalue) if hasattr(model, 'f_pvalue') else None,
+                "durbin_watson": float(model.durbin_watson()) if hasattr(model, 'durbin_watson') else None,
+                "params": [float(p) for p in model.params],
+                "pvalues": [float(p) for p in model.pvalues],
+                "std_errors": [float(se) for se in model.bse] if hasattr(model, 'bse') else None,
+            }
+
             return {
                 "is_cointegrated": is_cointegrated,
                 "p_value": p_value,
@@ -338,7 +352,7 @@ class PairsBacktester:
                 "intercept": intercept,
                 "use_log_prices": use_log_prices,
                 "price_ratio": price_ratio,
-                "regression_results": model,
+                "regression_stats": regression_stats,
             }
 
         except Exception as e:

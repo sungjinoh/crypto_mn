@@ -114,6 +114,20 @@ def find_cointegrated_pairs(
                     # Test stationarity of residuals using the corrected spread
                     adf_stat, adf_p_value, _, _, adf_critical, _ = adfuller(spread)
 
+                    # Extract only serializable regression statistics
+                    regression_stats = {
+                        "r_squared": float(model.rsquared),
+                        "r_squared_adj": float(model.rsquared_adj),
+                        "aic": float(model.aic),
+                        "bic": float(model.bic),
+                        "f_statistic": float(model.fvalue) if hasattr(model, 'fvalue') else None,
+                        "f_pvalue": float(model.f_pvalue) if hasattr(model, 'f_pvalue') else None,
+                        "durbin_watson": float(model.durbin_watson()) if hasattr(model, 'durbin_watson') else None,
+                        "params": [float(p) for p in model.params],
+                        "pvalues": [float(p) for p in model.pvalues],
+                        "std_errors": [float(se) for se in model.bse] if hasattr(model, 'bse') else None,
+                    }
+
                     cointegration_results = {
                         "is_cointegrated": True,
                         "p_value": p_value,
@@ -128,11 +142,7 @@ def find_cointegrated_pairs(
                         "adf_p_value": adf_p_value,
                         "adf_critical_values": adf_critical,
                         "residuals_stationary": adf_p_value < 0.05,
-                        "model_summary": {
-                            "r_squared": model.rsquared,
-                            "aic": model.aic,
-                            "bic": model.bic,
-                        },
+                        "regression_stats": regression_stats,
                     }
 
                     cointegrated_pairs.append((symbol1, symbol2, cointegration_results))
