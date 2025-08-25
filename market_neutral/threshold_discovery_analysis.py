@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Threshold Discovery Analysis
+Threshold Discovery Analysis - Fixed Version
 Use run_fixed_parameters.py results to find optimal filtering thresholds.
 """
 
@@ -13,7 +13,7 @@ import seaborn as sns
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from run_fixed_parameters import run_fixed_parameters_backtest
+from market_neutral.run_fixed_parameters import run_fixed_parameters_backtest
 
 
 def run_threshold_discovery_backtest():
@@ -26,9 +26,9 @@ def run_threshold_discovery_backtest():
     # Use moderate, reasonable baseline parameters
     baseline_params = {
         "lookback_period": 60,  # Standard rolling window
-        "entry_threshold": 2.5,  # Moderate entry signal
+        "entry_threshold": 2.0,  # Moderate entry signal
         "exit_threshold": 0.5,  # Balanced exit signal
-        "stop_loss_threshold": 3.5,  # Conservative stop loss
+        "stop_loss_threshold": 3.0,  # Conservative stop loss
     }
 
     print("📋 Using baseline parameters for threshold discovery:")
@@ -62,7 +62,7 @@ def analyze_performance_distribution(df):
 
     if len(successful) == 0:
         print("❌ No successful backtests found!")
-        return None
+        return None, None
 
     # Key performance metrics
     metrics = {
@@ -116,7 +116,9 @@ def find_optimal_thresholds(df):
             "min_sharpe": top_pairs["sharpe_ratio"].min(),
             "min_return": top_pairs["total_return"].min(),
             "max_drawdown": top_pairs["max_drawdown"].max(),
-            "min_win_rate": top_pairs["win_rate"].min(),
+            "min_win_rate": (
+                top_pairs["win_rate"].min() if "win_rate" in top_pairs.columns else 0.0
+            ),
             "min_trades": int(top_pairs["num_trades"].min()),
             "avg_sharpe": top_pairs["sharpe_ratio"].mean(),
             "avg_return": top_pairs["total_return"].mean(),
@@ -147,6 +149,10 @@ def recommend_thresholds(threshold_options, target_pairs=10):
     print(f"\n💡 THRESHOLD RECOMMENDATIONS")
     print("=" * 60)
 
+    if not threshold_options:
+        print("❌ No threshold options available!")
+        return None
+
     # Find the selection percentage that gets closest to target
     best_option = None
     min_diff = float("inf")
@@ -158,7 +164,7 @@ def recommend_thresholds(threshold_options, target_pairs=10):
             best_option = (group_name, thresholds)
 
     if best_option:
-        group_name, recommended = best_option[1]
+        group_name, recommended = best_option  # Fixed: properly unpack the tuple
 
         print(f"🎯 RECOMMENDED THRESHOLDS (targeting ~{target_pairs} pairs):")
         print(f"   • Min Sharpe Ratio: {recommended['min_sharpe']:.3f}")
@@ -176,23 +182,20 @@ def recommend_thresholds(threshold_options, target_pairs=10):
         print(f"```")
 
         # Also show conservative and aggressive options
-        conservative_idx = max(
-            0, list(threshold_options.keys()).index(best_option[0]) - 1
-        )
-        aggressive_idx = min(
-            len(threshold_options) - 1,
-            list(threshold_options.keys()).index(best_option[0]) + 1,
-        )
+        group_names = list(threshold_options.keys())
+        current_idx = group_names.index(group_name)
 
-        if conservative_idx != list(threshold_options.keys()).index(best_option[0]):
-            conservative = list(threshold_options.values())[conservative_idx]
+        if current_idx > 0:
+            conservative_name = group_names[current_idx - 1]
+            conservative = threshold_options[conservative_name]
             print(f"\n🛡️ CONSERVATIVE OPTION (fewer pairs, higher quality):")
             print(
                 f"   min_sharpe={conservative['min_sharpe']:.3f}, min_return={conservative['min_return']:.3f}"
             )
 
-        if aggressive_idx != list(threshold_options.keys()).index(best_option[0]):
-            aggressive = list(threshold_options.values())[aggressive_idx]
+        if current_idx < len(group_names) - 1:
+            aggressive_name = group_names[current_idx + 1]
+            aggressive = threshold_options[aggressive_name]
             print(f"\n🚀 AGGRESSIVE OPTION (more pairs, lower standards):")
             print(
                 f"   min_sharpe={aggressive['min_sharpe']:.3f}, min_return={aggressive['min_return']:.3f}"
@@ -250,8 +253,72 @@ def create_threshold_plots(df, save_dir="threshold_analysis_plots"):
     plt.close()
 
 
+def analyze_existing_results(csv_file):
+    """Analyze existing results from run_fixed_parameters.py"""
+
+    print(f"📁 ANALYZING EXISTING RESULTS: {csv_file}")
+    print("=" * 60)
+
+    try:
+        df = pd.read_csv(csv_file)
+        print(f"✅ Loaded {len(df)} results from {csv_file}")
+
+        # Analyze the successful results
+        if "success" in df.columns:
+            successful = df[df["success"] == True]
+        else:
+            # Assume all results are successful if no success column
+            successful = df
+
+        if len(successful) == 0:
+            print("❌ No successful results found!")
+            return
+
+        print(f"📊 Found {len(successful)} successful backtests")
+
+        # Run analysis on existing data
+        percentiles, _ = analyze_performance_distribution(df)
+        threshold_options = find_optimal_thresholds(successful)
+        recommended = recommend_thresholds(threshold_options, target_pairs=10)
+
+        # Create plots
+        create_threshold_plots(successful)
+
+        print(f"\n🎉 ANALYSIS OF EXISTING RESULTS COMPLETED!")
+
+    except FileNotFoundError:
+        print(f"❌ File not found: {csv_file}")
+        print("   Please run run_fixed_parameters.py first to generate results")
+    except Exception as e:
+        print(f"❌ Error analyzing results: {e}")
+
+
 def main():
     """Main function for threshold discovery"""
+
+    # Check if there are existing results files to analyze
+    import glob
+
+    existing_files = glob.glob("fixed_params_results_*.csv")
+
+    if existing_files:
+        print("🔍 Found existing results files:")
+        for i, file in enumerate(existing_files):
+            print(f"   {i+1}. {file}")
+
+        choice = (
+            input("\nWould you like to analyze existing results? (y/n): ")
+            .lower()
+            .strip()
+        )
+
+        if choice == "y":
+            # Use the most recent file
+            latest_file = max(existing_files, key=os.path.getctime)
+            analyze_existing_results(latest_file)
+            return
+
+    print("🚀 Running new threshold discovery backtest...")
 
     # Step 1: Run comprehensive backtest
     print("Step 1: Running comprehensive backtest...")

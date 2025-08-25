@@ -280,7 +280,7 @@ class OptimalBacktestingWorkflow:
                 # Load data
                 symbol1, symbol2 = pair["symbol1"], pair["symbol2"]
                 df1, df2 = backtester.load_pair_data(
-                    symbol1, symbol2, [2024], [4, 5, 6]
+                    symbol1, symbol2, [2024], [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]]
                 )
 
                 # Optimize parameters for this specific pair

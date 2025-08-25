@@ -330,8 +330,11 @@ def main():
     results = run_fixed_parameters_backtest(
         fixed_params=fixed_params,
         n_pairs=100,  # Test top 20 pairs
-        test_years=[2024],
-        test_months=[4, 5, 6, 7, 8, 9, 10, 11, 12],  # Out-of-sample testing
+        test_years=[2023, 2024],
+        test_months=[
+            [6, 7, 8, 9, 10, 11, 12],
+            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+        ],  # Out-of-sample testing
         save_results=True,
         save_plots=True,
     )
