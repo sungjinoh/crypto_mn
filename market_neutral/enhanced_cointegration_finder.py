@@ -831,7 +831,7 @@ def main():
     # Initialize the finder
     finder = CointegrationFinder(
         base_path="binance_futures_data",
-        resample_interval="30T",  # 30-minute candles
+        resample_interval="4H",  # 30-minute candles
         min_data_points=1000,  # Minimum data points required
         significance_level=0.05,  # 5% significance level
         n_jobs=-1,  # Use all CPU cores

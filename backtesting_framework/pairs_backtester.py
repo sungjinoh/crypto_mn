@@ -36,6 +36,15 @@ class Trade:
     exit_spread: Optional[float]
     entry_zscore: float
     exit_zscore: Optional[float]
+    # Enhanced trade details for analysis
+    quantity1: float = 0.0  # Actual units of symbol1 traded
+    quantity2: float = 0.0  # Actual units of symbol2 traded
+    hedge_ratio: float = 1.0  # Hedge ratio used for this trade
+    trade_direction: str = ""  # "long_spread" or "short_spread"
+    entry_value1: float = 0.0  # Dollar value of symbol1 position
+    entry_value2: float = 0.0  # Dollar value of symbol2 position
+    transaction_cost1: float = 0.0  # Transaction cost for symbol1
+    transaction_cost2: float = 0.0  # Transaction cost for symbol2
     pnl: Optional[float] = None
     is_closed: bool = False
 
@@ -81,6 +90,7 @@ class PairsBacktester:
         self.initial_capital = initial_capital
         self.transaction_cost = transaction_cost
         self.position_size = position_size
+        self.hedge_ratio = 1.0  # Default hedge ratio
         self.reset()
 
     def reset(self):
@@ -325,6 +335,7 @@ class PairsBacktester:
                 position_ratio = hedge_ratio * avg_price_ratio
             else:
                 position_ratio = hedge_ratio
+            hedge_ratio = position_ratio
 
             is_cointegrated = p_value < significance_level
 
@@ -376,16 +387,49 @@ class PairsBacktester:
             }
 
     def calculate_position_size(
-        self, price1: float, price2: float
+        self, price1: float, price2: float, hedge_ratio: Optional[float] = None
     ) -> Tuple[float, float]:
-        """Calculate position sizes for the pair"""
+        """
+        Calculate position sizes for the pair using hedge ratio for market neutrality
+        
+        Args:
+            price1: Price of symbol1
+            price2: Price of symbol2
+            hedge_ratio: Hedge ratio from cointegration (if None, uses self.hedge_ratio)
+            
+        Returns:
+            Tuple of (size1, size2) where positions are hedge-ratio adjusted
+        """
+        if hedge_ratio is None:
+            hedge_ratio = self.hedge_ratio
+            
         total_value = self.cash + self.get_portfolio_value()
-        position_value = (
-            total_value * self.position_size / 2
-        )  # Split between two assets
-
-        size1 = position_value / price1
-        size2 = position_value / price2
+        total_position_value = total_value * self.position_size
+        
+        # For true market neutrality with hedge ratio β:
+        # We want: size1 * price1 = hedge_ratio * size2 * price2
+        # And: size1 * price1 + size2 * price2 = total_position_value
+        # 
+        # From the first equation: size2 = (size1 * price1) / (hedge_ratio * price2)
+        # Substituting into second: size1 * price1 + ((size1 * price1) / hedge_ratio) = total_position_value
+        # Therefore: size1 * price1 * (1 + 1/hedge_ratio) = total_position_value
+        
+        abs_hedge_ratio = abs(hedge_ratio)
+        if abs_hedge_ratio < 1e-6:  # Avoid division by zero
+            abs_hedge_ratio = 1.0
+            
+        # Calculate position value for symbol1
+        value1 = total_position_value / (1 + (1 / abs_hedge_ratio))
+        value2 = value1 / abs_hedge_ratio
+        
+        size1 = value1 / price1
+        size2 = value2 / price2
+        
+        print(f"   💰 Hedge-adjusted position sizing:")
+        print(f"      Hedge ratio: {hedge_ratio:.4f}")
+        print(f"      Symbol1 value: ${value1:,.0f} ({size1:.4f} units)")
+        print(f"      Symbol2 value: ${value2:,.0f} ({size2:.4f} units)")
+        print(f"      Total allocation: ${value1 + value2:,.0f}")
 
         return size1, size2
 
@@ -406,6 +450,7 @@ class PairsBacktester:
         position2: int,
         symbol1: str,
         symbol2: str,
+        hedge_ratio: Optional[float] = None,
     ) -> None:
         """Execute a trade based on the signal"""
         current_time = data_row.name
@@ -415,7 +460,11 @@ class PairsBacktester:
         zscore = data_row["zscore"]
 
         if signal == 1 and self.current_trade is None:  # Entry signal
-            size1, size2 = self.calculate_position_size(price1, price2)
+            # Use hedge ratio for proper market neutral position sizing
+            if hedge_ratio is None:
+                hedge_ratio = self.hedge_ratio
+                
+            size1, size2 = self.calculate_position_size(price1, price2, hedge_ratio)
 
             # Apply position direction
             size1 *= position1
@@ -425,8 +474,18 @@ class PairsBacktester:
             cost1 = abs(size1 * price1 * self.transaction_cost)
             cost2 = abs(size2 * price2 * self.transaction_cost)
             total_cost = cost1 + cost2
+            
+            # Calculate dollar values
+            value1 = abs(size1 * price1)
+            value2 = abs(size2 * price2)
+            
+            # Determine trade direction
+            if position1 > 0:  # Long symbol1, short symbol2
+                trade_direction = "long_spread"
+            else:  # Short symbol1, long symbol2
+                trade_direction = "short_spread"
 
-            # Create new trade
+            # Create new trade with enhanced details
             self.current_trade = Trade(
                 entry_time=current_time,
                 exit_time=None,
@@ -442,6 +501,15 @@ class PairsBacktester:
                 exit_spread=None,
                 entry_zscore=zscore,
                 exit_zscore=None,
+                # Enhanced fields
+                quantity1=size1,
+                quantity2=size2,
+                hedge_ratio=hedge_ratio,
+                trade_direction=trade_direction,
+                entry_value1=value1,
+                entry_value2=value2,
+                transaction_cost1=cost1,
+                transaction_cost2=cost2,
             )
 
             # Update cash
@@ -465,7 +533,7 @@ class PairsBacktester:
 
             # Calculate position sizes (assuming same as entry for simplicity)
             size1, size2 = self.calculate_position_size(
-                self.current_trade.entry_price1, self.current_trade.entry_price2
+                self.current_trade.entry_price1, self.current_trade.entry_price2, hedge_ratio
             )
 
             total_pnl = (pnl1 * size1) + (pnl2 * size2)
@@ -534,6 +602,9 @@ class PairsBacktester:
 
         # If cointegrated, calculate consistent spread and signals
         if cointegration_results.get("is_cointegrated", False):
+            # Store hedge ratio for position sizing
+            self.hedge_ratio = cointegration_results["hedge_ratio"]
+            
             # Use the hedge ratio and other parameters from cointegration analysis
             data = self.calculate_spread_and_signals(
                 data,
@@ -566,6 +637,7 @@ class PairsBacktester:
                     row["position2"],
                     symbol1,
                     symbol2,
+                    hedge_ratio=self.hedge_ratio,
                 )
 
             # Record portfolio value

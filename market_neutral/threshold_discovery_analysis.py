@@ -25,10 +25,10 @@ def run_threshold_discovery_backtest():
 
     # Use moderate, reasonable baseline parameters
     baseline_params = {
-        "lookback_period": 60,  # Standard rolling window
-        "entry_threshold": 2.0,  # Moderate entry signal
-        "exit_threshold": 0.5,  # Balanced exit signal
-        "stop_loss_threshold": 3.0,  # Conservative stop loss
+        "lookback_period": 52,  # Standard rolling window
+        "entry_threshold": 3.0,  # Moderate entry signal
+        "exit_threshold": 0.1,  # Balanced exit signal
+        "stop_loss_threshold": 3.25,  # Conservative stop loss
     }
 
     print("📋 Using baseline parameters for threshold discovery:")
@@ -38,7 +38,7 @@ def run_threshold_discovery_backtest():
     # Run on many pairs to get good distribution
     results = run_fixed_parameters_backtest(
         fixed_params=baseline_params,
-        n_pairs=100,  # Test many pairs for good statistics
+        n_pairs=500,  # Test many pairs for good statistics
         test_years=[2023, 2024],
         test_months=[
             [6, 7, 8, 9, 10, 11, 12],
@@ -243,7 +243,10 @@ def recommend_thresholds(threshold_options, target_pairs=10):
     print(f"    coint_filtered = []")
     print(f"    for pair in cointegration_results:")
     print(
-        f"        if (pair['p_value'] <= 0.01 and                    # Strong cointegration"
+        f"        if (pair['is_cointegrated'] == True and           # Must be cointegrated"
+    )
+    print(
+        f"            pair['p_value'] <= 0.01 and                    # Strong cointegration"
     )
     print(
         f"            pair['correlation'] >= 0.8 and                 # High correlation"
@@ -414,6 +417,10 @@ def analyze_cointegration_filters(cointegration_file, backtesting_file):
             # Apply cointegration filters
             filtered_coint = []
             for pair in coint_pairs:
+                # First check: Must be cointegrated
+                if not pair.get("is_cointegrated", False):
+                    continue
+                    
                 if (
                     pair.get("p_value", 1.0) <= config["max_p_value"]
                     and pair.get("correlation", 0.0) >= config["min_correlation"]

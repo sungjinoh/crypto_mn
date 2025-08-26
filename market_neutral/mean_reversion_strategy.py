@@ -59,8 +59,30 @@ class MeanReversionStrategy(PairsStrategy):
             zscore = data["consistent_zscore"]
             # print(f"   Using consistent z-score from cointegration analysis")
         else:
-            zscore = data["zscore"]
-            # print(f"   Using standard z-score calculation")
+            # Check if we have hedge ratio information to calculate proper spread
+            hedge_ratio = data.attrs.get("hedge_ratio", None)
+            intercept = data.attrs.get("intercept", 0)
+            
+            if hedge_ratio is not None:
+                # Calculate hedge-adjusted z-score on the fly
+                print(f"   ⚠️ WARNING: consistent_zscore missing but hedge_ratio available")
+                print(f"   🔧 Calculating hedge-adjusted z-score: hedge_ratio={hedge_ratio:.4f}")
+                
+                # Calculate correct spread
+                if data.attrs.get("use_log_prices", False):
+                    corrected_spread = np.log(data["price1"]) - hedge_ratio * np.log(data["price2"]) - intercept
+                else:
+                    corrected_spread = data["price1"] - hedge_ratio * data["price2"] - intercept
+                
+                # Calculate z-score
+                spread_mean = corrected_spread.rolling(window=self.lookback_period).mean()
+                spread_std = corrected_spread.rolling(window=self.lookback_period).std()
+                zscore = (corrected_spread - spread_mean) / spread_std
+                
+                print(f"   ✅ Using corrected hedge-adjusted z-score")
+            else:
+                zscore = data["zscore"]
+                print(f"   ⚠️ WARNING: Using basic z-score - may not be optimal for cointegrated pairs")
 
         # Entry signals
         long_entry = (

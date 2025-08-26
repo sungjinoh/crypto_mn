@@ -9,8 +9,8 @@ import os
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from mean_reversion_backtest import MeanReversionBacktester
-from mean_reversion_strategy import MeanReversionStrategy
+from market_neutral.mean_reversion_backtest import MeanReversionBacktester
+from market_neutral.mean_reversion_strategy import MeanReversionStrategy
 import pandas as pd
 import numpy as np
 from datetime import datetime
@@ -86,9 +86,9 @@ def run_fixed_parameters_backtest(
     top_pairs = backtester.filter_top_pairs(
         coint_results,
         n_pairs=n_pairs,
-        # max_p_value=0.08,
-        # min_correlation=0.6,
-        # max_half_life=90,
+        max_p_value=0.01,
+        min_correlation=0.8,
+        max_half_life=30,
     )
 
     if not top_pairs:

@@ -25,8 +25,8 @@ from backtesting_framework.pairs_backtester import (
     PairsBacktester,
     plot_backtest_results,
 )
-from mean_reversion_strategy import MeanReversionStrategy
-from enhanced_cointegration_finder import CointegrationFinder
+from market_neutral.mean_reversion_strategy import MeanReversionStrategy
+from market_neutral.enhanced_cointegration_finder import CointegrationFinder
 
 
 class MeanReversionBacktester:
@@ -146,6 +146,10 @@ class MeanReversionBacktester:
         # Filter pairs
         filtered_pairs = []
         for pair in pairs:
+            # First check: Must be cointegrated
+            if not pair.get("is_cointegrated", False):
+                continue
+
             # Check p-value
             if pair["p_value"] > max_p_value:
                 continue
@@ -280,6 +284,9 @@ class MeanReversionBacktester:
 
         # If cointegrated, calculate consistent spread and signals
         if cointegration_results.get("is_cointegrated", False):
+            # Store hedge ratio for position sizing
+            self.backtester.hedge_ratio = cointegration_results["hedge_ratio"]
+            
             # Use the hedge ratio and other parameters from cointegration analysis
             data = self.backtester.calculate_spread_and_signals(
                 data,
@@ -312,6 +319,7 @@ class MeanReversionBacktester:
                     row["position2"],
                     symbol1,
                     symbol2,
+                    hedge_ratio=self.backtester.hedge_ratio,  # Pass hedge ratio for proper position sizing
                 )
 
             # Record portfolio value
@@ -548,6 +556,23 @@ class MeanReversionBacktester:
                     "exit_price2": trade.exit_price2,
                     "exit_spread": trade.exit_spread,
                     "exit_zscore": trade.exit_zscore,
+                    # Enhanced execution details
+                    "quantity1": getattr(trade, "quantity1", 0.0),  # Units of symbol1 traded
+                    "quantity2": getattr(trade, "quantity2", 0.0),  # Units of symbol2 traded
+                    "hedge_ratio": getattr(trade, "hedge_ratio", 1.0),  # Hedge ratio used
+                    "trade_direction": getattr(trade, "trade_direction", ""),  # long_spread or short_spread
+                    "entry_value1": getattr(trade, "entry_value1", 0.0),  # Dollar value symbol1
+                    "entry_value2": getattr(trade, "entry_value2", 0.0),  # Dollar value symbol2
+                    "total_entry_value": getattr(trade, "entry_value1", 0.0) + getattr(trade, "entry_value2", 0.0),
+                    "transaction_cost1": getattr(trade, "transaction_cost1", 0.0),
+                    "transaction_cost2": getattr(trade, "transaction_cost2", 0.0),
+                    "total_transaction_cost": getattr(trade, "transaction_cost1", 0.0) + getattr(trade, "transaction_cost2", 0.0),
+                    # Hedge effectiveness metrics
+                    "hedge_effectiveness": (
+                        abs(getattr(trade, "entry_value1", 0.0) - getattr(trade, "hedge_ratio", 1.0) * getattr(trade, "entry_value2", 0.0)) 
+                        / max(getattr(trade, "entry_value1", 1.0), getattr(trade, "entry_value2", 1.0)) 
+                        if max(getattr(trade, "entry_value1", 1.0), getattr(trade, "entry_value2", 1.0)) > 0 else 0.0
+                    ),
                     # Trade performance
                     "duration_hours": duration,
                     "pnl": trade.pnl or 0.0,
@@ -660,8 +685,19 @@ class MeanReversionBacktester:
         net_pnl = trades_df["net_pnl"].fillna(0).sum()
         avg_duration = trades_df["duration_hours"].fillna(0).mean()
 
+        # Enhanced summary with new fields
+        avg_hedge_ratio = trades_df["hedge_ratio"].mean()
+        avg_transaction_cost = trades_df["total_transaction_cost"].fillna(0).mean()
+        avg_entry_value = trades_df["total_entry_value"].fillna(0).mean()
+        long_spread_trades = (trades_df["trade_direction"] == "long_spread").sum()
+        short_spread_trades = (trades_df["trade_direction"] == "short_spread").sum()
+        
         print(f"   📝 Trade details saved: {filepath}")
         print(f"      • Total trades: {total_trades}")
+        print(f"      • Trade direction: {long_spread_trades} long spread, {short_spread_trades} short spread")
+        print(f"      • Average hedge ratio: {avg_hedge_ratio:.3f}")
+        print(f"      • Average position value: ${avg_entry_value:,.0f}")
+        print(f"      • Average transaction cost: ${avg_transaction_cost:.2f}")
         print(
             f"      • Profitable (before funding): {profitable_trades} ({profitable_trades/total_trades:.1%})"
         )
