@@ -1317,10 +1317,11 @@ def main():
 
     # Find cointegrated pairs with enhanced analysis
     results = finder.find_all_cointegrated_pairs(
-        years=[2023, 2024],
+        years=[2023, 2024, 2025],
         months=[
             [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],  # All months for 2023
-            [1, 2, 3, 4, 5],  # Jan-May for 2024
+            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],  # Jan-May for 2024
+            [1, 2, 3],
         ],
         max_symbols=None,  # Set to a number for testing (e.g., 30)
         use_parallel=True,
