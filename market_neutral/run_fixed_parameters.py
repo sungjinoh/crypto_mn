@@ -22,6 +22,7 @@ warnings.filterwarnings("ignore")
 def run_fixed_parameters_backtest(
     fixed_params: dict,
     n_pairs: int = 20,
+    specific_pairs: list = None,  # New parameter for specific pair list
     test_years: list = [2024],
     test_months: list = [4, 5, 6],
     save_results: bool = True,
@@ -32,7 +33,8 @@ def run_fixed_parameters_backtest(
 
     Args:
         fixed_params: Dictionary with strategy parameters
-        n_pairs: Number of top pairs to test
+        n_pairs: Number of top pairs to test (ignored if specific_pairs provided)
+        specific_pairs: List of (symbol1, symbol2) tuples to test (optional)
         test_years: List of years for backtesting (e.g., [2024])
         test_months: List of months for backtesting (e.g., [4, 5, 6])
         save_results: Whether to save results to CSV
@@ -50,7 +52,10 @@ def run_fixed_parameters_backtest(
     print(f"   • Stop Loss Threshold: {fixed_params['stop_loss_threshold']}")
 
     print(f"\n📊 Test Configuration:")
-    print(f"   • Number of pairs: {n_pairs}")
+    if specific_pairs:
+        print(f"   • Testing specific pairs: {len(specific_pairs)} pairs provided")
+    else:
+        print(f"   • Number of pairs: {n_pairs}")
     print(f"   • Test period: {test_years} months {test_months}")
     print(f"   • Save results: {save_results}")
     print(f"   • Save plots: {save_plots}")
@@ -78,33 +83,47 @@ def run_fixed_parameters_backtest(
     print(f"   • Save Trade Details: {backtester.save_trades}")
     print(f"   • Trade Logs Directory: {backtester.trades_dir}")
 
-    # Load cointegration results and get top pairs
-    print(f"\n1. Loading cointegration results...")
-    coint_results = backtester.load_cointegration_results()
+    # Handle specific pairs or load from cointegration results
+    if specific_pairs:
+        print(f"\n1. Using {len(specific_pairs)} specific pairs provided")
+        # Convert to format expected by backtester
+        top_pairs = []
+        for symbol1, symbol2 in specific_pairs:
+            top_pairs.append({
+                'symbol1': symbol1,
+                'symbol2': symbol2,
+                'p_value': 0.01,  # Default values for specific pairs
+                'correlation': 0.8,
+                'hedge_ratio': 1.0
+            })
+    else:
+        # Load cointegration results and get top pairs
+        print(f"\n1. Loading cointegration results...")
+        coint_results = backtester.load_cointegration_results()
 
-    print(f"\n2. Filtering top {n_pairs} pairs...")
-    top_pairs = backtester.filter_top_pairs(
-        coint_results,
-        n_pairs=n_pairs,
-        max_p_value=0.0152,
-        min_correlation=0.6,
-        max_half_life=60,
-    )
-
-    if not top_pairs:
-        print("❌ No suitable pairs found!")
-        return pd.DataFrame()
-
-    print(f"Found {len(top_pairs)} pairs meeting criteria:")
-    for i, pair in enumerate(top_pairs[:10], 1):  # Show first 10
-        print(
-            f"  {i:2d}. {pair['symbol1']:10s} - {pair['symbol2']:10s} | "
-            f"p-value: {pair['p_value']:.6f} | "
-            f"corr: {pair['correlation']:.3f}"
+        print(f"\n2. Filtering top {n_pairs} pairs...")
+        top_pairs = backtester.filter_top_pairs(
+            coint_results,
+            n_pairs=n_pairs,
+            max_p_value=0.0152,
+            min_correlation=0.6,
+            max_half_life=60,
         )
 
-    if len(top_pairs) > 10:
-        print(f"  ... and {len(top_pairs) - 10} more pairs")
+        if not top_pairs:
+            print("❌ No suitable pairs found!")
+            return pd.DataFrame()
+
+        print(f"Found {len(top_pairs)} pairs meeting criteria:")
+        for i, pair in enumerate(top_pairs[:10], 1):  # Show first 10
+            print(
+                f"  {i:2d}. {pair['symbol1']:10s} - {pair['symbol2']:10s} | "
+                f"p-value: {pair['p_value']:.6f} | "
+                f"corr: {pair['correlation']:.3f}"
+            )
+
+        if len(top_pairs) > 10:
+            print(f"  ... and {len(top_pairs) - 10} more pairs")
 
     # Create strategy with fixed parameters
     strategy = MeanReversionStrategy(

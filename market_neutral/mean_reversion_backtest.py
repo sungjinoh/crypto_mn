@@ -26,7 +26,7 @@ from backtesting_framework.pairs_backtester import (
     plot_backtest_results,
 )
 from market_neutral.mean_reversion_strategy import MeanReversionStrategy
-from market_neutral.enhanced_cointegration_finder import CointegrationFinder
+from market_neutral.enhanced_cointegration_finder_v2 import EnhancedCointegrationFinder as CointegrationFinder
 
 
 class MeanReversionBacktester:
