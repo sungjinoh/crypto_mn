@@ -60,7 +60,7 @@ class EnhancedCompleteWorkflow:
             timeframes = ["30T", "1H", "2H", "4H"]
         
         if data_years is None:
-            data_years = [2023]
+            data_years = [2023, 2024]
             
         if data_months is None:
             data_months = list(range(1, 13))  # Full year
@@ -161,8 +161,8 @@ class EnhancedCompleteWorkflow:
         
         if validation_period is None:
             validation_period = {
-                'years': [2024],
-                'months': [1, 2, 3, 4, 5, 6]
+                'years': [2025],
+                'months': [1, 2, 3]
             }
         
         print(f"\n📈 Testing thresholds on validation period: {validation_period}")
@@ -372,9 +372,9 @@ class EnhancedCompleteWorkflow:
                 try:
                     results_df = run_fixed_parameters_backtest(
                         fixed_params=params,
-                        specific_pairs=pair_list[:10],  # Test on subset for speed
-                        test_years=[2024],
-                        test_months=[1, 2, 3],  # Quick test
+                        specific_pairs=pair_list,  # Test on subset for speed
+                        test_years=[2025],
+                        test_months=[3, 4, 5, 6, 7],  # Quick test
                         save_results=False,
                         save_plots=False,
                     )
