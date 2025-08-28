@@ -86,9 +86,9 @@ def run_fixed_parameters_backtest(
     top_pairs = backtester.filter_top_pairs(
         coint_results,
         n_pairs=n_pairs,
-        max_p_value=0.01,
-        min_correlation=0.8,
-        max_half_life=30,
+        max_p_value=0.0152,
+        min_correlation=0.6,
+        max_half_life=60,
     )
 
     if not top_pairs:
